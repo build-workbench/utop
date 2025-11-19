@@ -1,0 +1,35 @@
+# Rust build artifacts
+**/target/
+
+# Go build artifacts
+**/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+
+# Logs & temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*.dump
+
+# OS / file manager
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+**/.vscode/
+**/.idea/
+*.iml
+
+# Misc
+.env
+.env.*
