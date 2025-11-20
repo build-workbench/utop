@@ -46,9 +46,8 @@
 - 参见子项目文档：`go/README.md` 与 `rust/README.md`。
 
 ## 开源许可
-- Rust 子项目当前声明：`MIT OR Apache-2.0`。
-- Go 子项目 README 提到 `MIT`（可调整）。
-- 请确认仓库根级许可证偏好（`MIT`、`Apache-2.0`、或双许可证 `MIT OR Apache-2.0`），确认后将添加 `LICENSE` 文件并在各子项目中对齐。
+- 本项目遵循仓库根目录 `LICENSE` 文件约定，采用 `MIT OR Apache-2.0` 双许可证。
+- Rust 与 Go 实现均可在上述许可证下使用和分发。
 
 ## 贡献
 - 欢迎 PR。请遵循：

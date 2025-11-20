@@ -66,4 +66,4 @@ cargo run
 - 导出进程列表（CSV/JSON）
 
 ## 许可
-未指定，默认保留所有权利（你可根据需要添加 LICENSE）。
+MIT OR Apache-2.0（遵循仓库根目录 LICENSE）。

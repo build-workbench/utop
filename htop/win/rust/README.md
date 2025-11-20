@@ -91,3 +91,6 @@ htop-win-rust/
 - 更贴近 htop 的 F 键映射
 
 如需这些功能，请告诉我你的优先级，我会按你的需求安排实现顺序。
+
+## 许可
+MIT OR Apache-2.0（遵循仓库根目录 LICENSE）。

@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "dos2unix",
+    "gzip/rust",
+    "htop/unix/rust",
+    "htop/win/rust",
+]
+resolver = "2"

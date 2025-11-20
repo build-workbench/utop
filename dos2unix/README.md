@@ -72,4 +72,4 @@ dos2unix-rust - file1.txt file2.txt
 
 ## 许可证
 
-MIT
+MIT OR Apache-2.0（遵循仓库根目录 LICENSE）。

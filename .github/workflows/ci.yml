@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  rust:
+    name: Rust workspace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Cargo fmt
+        run: cargo fmt --all -- --check
+      - name: Cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Cargo test
+        run: cargo test --all --all-features
+
+  go-linux:
+    name: Go (gzip-go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gzip/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - name: gofmt check
+        run: |
+          changed=$(gofmt -l .)
+          if [ -n "$changed" ]; then
+            echo "Go files not formatted:" >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+
+  go-windows:
+    name: Go (htop win/go)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: htop/win/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+          cache-dependency-path: htop/win/go/go.sum
+      - name: gofmt check
+        shell: pwsh
+        run: |
+          $changed = gofmt -l .
+          if ($changed) {
+            Write-Host "Go files not formatted:"
+            $changed
+            exit 1
+          }
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...

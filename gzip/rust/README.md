@@ -97,4 +97,4 @@ rgzip/
 - 使用 `cargo publish` 前请确保 changelog 与 README 同步更新。
 
 ## 许可证
-MIT OR Apache-2.0（双许可证任选其一）。
+MIT OR Apache-2.0（双许可证任选其一，遵循仓库根目录 LICENSE）。

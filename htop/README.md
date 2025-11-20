@@ -41,7 +41,7 @@ gofmt -w . && go vet ./...
 - 提交 PR 前附上动机与变更简述
 
 ## 许可
-- 待选择（建议 MIT/Apache-2.0）。请在根目录添加 `LICENSE` 文件。
+- 遵循仓库根目录 `LICENSE` 文件，采用 `MIT OR Apache-2.0` 双许可证。
 
 ## 变更日志
 - 见 `changelog/CHANGELOG.md`
