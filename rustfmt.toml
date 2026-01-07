@@ -1,0 +1,28 @@
+# Rust formatting configuration
+# https://rust-lang.github.io/rustfmt/
+
+# Use 2021 edition formatting rules
+edition = "2021"
+
+# Maximum line width
+max_width = 100
+
+# Use default heuristics for formatting decisions
+use_small_heuristics = "Default"
+
+# Use Unix-style line endings
+newline_style = "Unix"
+
+# Indent with spaces
+hard_tabs = false
+tab_spaces = 4
+
+# Reorder imports alphabetically
+reorder_imports = true
+reorder_modules = true
+
+# Use field init shorthand
+use_field_init_shorthand = true
+
+# Use try! shorthand
+use_try_shorthand = true

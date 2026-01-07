@@ -1,58 +1,178 @@
 # Build-Your-Own-Utils
 
-一个用 Rust / Go 手写常用命令行工具的学习仓库，用于练习底层实现、命令行设计与跨语言对比。目前包含三个子项目：
+[![CI](https://github.com/user/Build-Your-Own-Utils/actions/workflows/ci.yml/badge.svg)](https://github.com/user/Build-Your-Own-Utils/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
+[![Go](https://img.shields.io/badge/go-1.20%2B-00ADD8.svg)](https://golang.org/)
 
-- `dos2unix/`：Rust 实现的轻量 dos2unix 工具
-- `gzip/`：Go 与 Rust 实现的极简 gzip 命令行
-- `htop/`：Unix / Windows 平台的 htop 学习/演示项目（Rust 与 Go 多版本）
+一个用 Rust / Go 手写常用命令行工具的学习仓库，用于练习底层实现、命令行设计与跨语言对比。
 
-## 目录结构
+## ✨ 特性
 
-```text
-./
-├── dos2unix/        # Rust 实现的 dos2unix
-├── gzip/            # Go & Rust 实现的 gzip
-└── htop/            # 跨平台 htop 示例（Unix/Win, Go/Rust）
+- 🦀 **Rust 实现** - 高性能、内存安全的系统级实现
+- 🐹 **Go 实现** - 简洁高效的并发友好实现
+- 📚 **学习导向** - 代码清晰易读，适合学习底层原理
+- 🔧 **实用工具** - 可直接用于日常开发的命令行工具
+- 🌍 **跨平台** - 支持 Linux、macOS、Windows
+
+## 📦 子项目
+
+| 项目 | 描述 | 语言 | 状态 |
+|------|------|------|------|
+| [dos2unix](./dos2unix/) | CRLF 转 LF 换行符转换工具 | Rust | ✅ |
+| [gzip](./gzip/) | 文件压缩/解压工具 | Rust, Go | ✅ |
+| [htop](./htop/) | 系统进程监控工具 | Rust, Go | ✅ |
+
+## 🏗️ 架构
+
+```mermaid
+graph TB
+    subgraph "Build-Your-Own-Utils"
+        subgraph "dos2unix"
+            D[Rust 实现]
+        end
+        subgraph "gzip"
+            G1[Rust 实现]
+            G2[Go 实现]
+        end
+        subgraph "htop"
+            subgraph "Unix"
+                H1[Rust 实现]
+            end
+            subgraph "Windows"
+                H2[Rust 实现]
+                H3[Go 实现]
+            end
+        end
+    end
 ```
 
-每个子目录内都有单独的 `README.md`，包含更详细的设计说明、构建方式与使用示例。
+## 🚀 快速开始
 
-## 前置依赖
+### 前置依赖
 
-- Rust 工具链（建议 1.70+）
-- Go 工具链（建议 1.20+）
-- Linux / macOS / WSL 等类 Unix 环境（主要目标平台）
+- [Rust](https://www.rust-lang.org/tools/install) 1.70+
+- [Go](https://golang.org/dl/) 1.20+
 
-## 快速开始
-
-以下仅为示例，实际以各子项目 README 为准：
+### 构建所有项目
 
 ```bash
-# 进入 dos2unix 并构建
-cd dos2unix
-cargo build --release
+# 克隆仓库
+git clone https://github.com/user/Build-Your-Own-Utils.git
+cd Build-Your-Own-Utils
 
-# 进入 gzip/Go 版
-cd gzip/go
-make build          # 或：go build -o bin/gzip-go ./cmd/gzip-go
+# 构建所有 Rust 项目
+make build-rust
 
-# 进入 htop（以 Unix/Rust 版为例）
-cd htop/unix/rust
-cargo run
+# 构建所有 Go 项目
+make build-go
 ```
 
-更多选项、用法示例、退出码约定等，请查看各子项目的 `README.md`。
+### 单独构建
 
-## 开发约定
+```bash
+# dos2unix (Rust)
+cd dos2unix && cargo build --release
 
-- 保持 KISS 原则：实现尽量简单、可读、易维护
-- 优先使用 LF 换行，文本归一与换行相关设置见各子项目配置
-- 修改功能时，请同步更新相应子目录的 `changelog/`
-- 提交前尽量运行基本检查：
-  - Rust：`cargo fmt && cargo clippy`
-  - Go：`gofmt -w . && go vet ./...`
+# gzip (Go)
+cd gzip/go && make build
 
-## 许可证
+# gzip (Rust)
+cd gzip/rust && cargo build --release
 
-本仓库在根目录提供统一的 `LICENSE` 文件，采用 `MIT OR Apache-2.0` 双许可证。
-各子项目（`dos2unix/`、`gzip/`、`htop/` 等）默认跟随根目录许可证策略；如需在具体分发中选择其一，可在相应发布说明中注明。
+# htop Unix (Rust)
+cd htop/unix/rust && cargo build --release
+
+# htop Windows (Go)
+cd htop/win/go && go build ./...
+```
+
+## 📖 使用示例
+
+### dos2unix
+
+```bash
+# 转换单个文件
+dos2unix-rust file.txt
+
+# 检测文件是否包含 CRLF
+dos2unix-rust --check file.txt
+
+# 从标准输入读取
+cat file.txt | dos2unix-rust > output.txt
+```
+
+### gzip
+
+```bash
+# 压缩文件 (Go 版)
+gzip-go file.txt
+
+# 解压文件 (Rust 版)
+rgzip -d file.txt.gz
+```
+
+### htop
+
+```bash
+# 运行系统监控 (Unix)
+htop-unix-rust
+
+# 运行系统监控 (Windows)
+htop-win-go
+```
+
+## 🛠️ 开发
+
+### 代码检查
+
+```bash
+# Rust
+cargo fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo test --all
+
+# Go
+gofmt -w .
+go vet ./...
+go test ./...
+```
+
+### 运行所有测试
+
+```bash
+make test-all
+```
+
+## 📁 目录结构
+
+```
+Build-Your-Own-Utils/
+├── dos2unix/           # Rust 实现的 dos2unix
+├── gzip/
+│   ├── go/             # Go 实现
+│   └── rust/           # Rust 实现
+├── htop/
+│   ├── unix/rust/      # Unix Rust 实现
+│   └── win/
+│       ├── go/         # Windows Go 实现
+│       └── rust/       # Windows Rust 实现
+├── docs/               # 项目文档
+├── .github/            # GitHub 配置
+├── CHANGELOG.md        # 变更日志
+├── CONTRIBUTING.md     # 贡献指南
+├── CODE_OF_CONDUCT.md  # 行为准则
+└── SECURITY.md         # 安全政策
+```
+
+## 🤝 贡献
+
+欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何参与项目开发。
+
+## 📄 许可证
+
+本项目采用 [MIT](LICENSE) 或 [Apache-2.0](LICENSE) 双许可证，你可以选择其中之一。
+
+## 🙏 致谢
+
+感谢所有贡献者和开源社区的支持！

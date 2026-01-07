@@ -1,0 +1,85 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  # Timeout for analysis
+  timeout: 5m
+
+  # Include test files
+  tests: true
+
+  # Skip vendor, third_party, testdata, examples
+  skip-dirs:
+    - vendor
+    - third_party
+    - testdata
+
+linters:
+  enable:
+    # Default linters
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Additional recommended linters
+    - gofmt
+    - goimports
+    - gocritic
+    - gosec
+    - misspell
+    - prealloc
+    - unconvert
+    - unparam
+
+  disable:
+    # Disabled linters (too strict for this project)
+    - exhaustive
+    - wrapcheck
+
+linters-settings:
+  gofmt:
+    simplify: true
+
+  goimports:
+    local-prefixes: github.com/user/Build-Your-Own-Utils
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - hugeParam
+
+  gosec:
+    excludes:
+      - G104  # Audit errors not checked
+      - G304  # File path provided as taint input
+
+  misspell:
+    locale: US
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+
+issues:
+  # Maximum issues count per one linter
+  max-issues-per-linter: 50
+
+  # Maximum count of issues with the same text
+  max-same-issues: 3
+
+  # Exclude some linters from running on tests files
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - gocritic
+
+  # Fix found issues (if it's supported by the linter)
+  fix: false

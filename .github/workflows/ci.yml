@@ -5,34 +5,66 @@ on:
     branches: ["**"]
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
+  # Rust workspace - cross-platform builds
   rust:
-    name: Rust workspace
-    runs-on: ubuntu-latest
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Cargo fmt
         run: cargo fmt --all -- --check
+
       - name: Cargo clippy
         run: cargo clippy --all-targets -- -D warnings
+
       - name: Cargo test
         run: cargo test --all --all-features
 
-  go-linux:
-    name: Go (gzip-go)
+      - name: Cargo build (release)
+        run: cargo build --all --release
+
+  # Go gzip - Linux
+  go-gzip-linux:
+    name: Go gzip (Linux)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: gzip/go
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: stable
           cache: true
+          cache-dependency-path: gzip/go/go.sum
+
       - name: gofmt check
         run: |
           changed=$(gofmt -l .)
@@ -41,24 +73,66 @@ jobs:
             echo "$changed" >&2
             exit 1
           fi
+
       - name: go vet
         run: go vet ./...
+
       - name: go test
         run: go test ./...
 
-  go-windows:
-    name: Go (htop win/go)
+      - name: go build
+        run: go build -o bin/gzip-go ./cmd/gzip-go
+
+  # Go gzip - macOS
+  go-gzip-macos:
+    name: Go gzip (macOS)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: gzip/go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+          cache-dependency-path: gzip/go/go.sum
+
+      - name: gofmt check
+        run: |
+          changed=$(gofmt -l .)
+          if [ -n "$changed" ]; then
+            echo "Go files not formatted:" >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+      - name: go build
+        run: go build -o bin/gzip-go ./cmd/gzip-go
+
+  # Go htop Windows
+  go-htop-windows:
+    name: Go htop (Windows)
     runs-on: windows-latest
     defaults:
       run:
         working-directory: htop/win/go
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: stable
           cache: true
           cache-dependency-path: htop/win/go/go.sum
+
       - name: gofmt check
         shell: pwsh
         run: |
@@ -68,7 +142,30 @@ jobs:
             $changed
             exit 1
           }
+
       - name: go vet
         run: go vet ./...
+
       - name: go test
         run: go test ./...
+
+      - name: go build
+        run: go build -o bin/htop-win.exe ./cmd/htop-win
+
+  # Summary job for branch protection
+  ci-success:
+    name: CI Success
+    needs: [rust, go-gzip-linux, go-gzip-macos, go-htop-windows]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.rust.result }}" != "success" ]] || \
+             [[ "${{ needs.go-gzip-linux.result }}" != "success" ]] || \
+             [[ "${{ needs.go-gzip-macos.result }}" != "success" ]] || \
+             [[ "${{ needs.go-htop-windows.result }}" != "success" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
+          echo "All jobs passed!"

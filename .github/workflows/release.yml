@@ -1,0 +1,192 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-rust:
+    name: Build Rust (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            suffix: linux-amd64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            suffix: darwin-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            suffix: darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            suffix: windows-amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binaries
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package binaries (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          # dos2unix
+          if [ -f "target/${{ matrix.target }}/release/dos2unix-rust" ]; then
+            cp "target/${{ matrix.target }}/release/dos2unix-rust" "dist/dos2unix-rust-${{ matrix.suffix }}"
+          fi
+          # gzip-rust
+          if [ -f "target/${{ matrix.target }}/release/rgzip" ]; then
+            cp "target/${{ matrix.target }}/release/rgzip" "dist/rgzip-${{ matrix.suffix }}"
+          fi
+          # htop-unix-rust
+          if [ -f "target/${{ matrix.target }}/release/htop-unix-rust" ]; then
+            cp "target/${{ matrix.target }}/release/htop-unix-rust" "dist/htop-unix-rust-${{ matrix.suffix }}"
+          fi
+          # htop-win-rust (only on Windows target)
+          if [ -f "target/${{ matrix.target }}/release/htop-win-rust" ]; then
+            cp "target/${{ matrix.target }}/release/htop-win-rust" "dist/htop-win-rust-${{ matrix.suffix }}"
+          fi
+
+      - name: Package binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          # dos2unix
+          if (Test-Path "target/${{ matrix.target }}/release/dos2unix-rust.exe") {
+            Copy-Item "target/${{ matrix.target }}/release/dos2unix-rust.exe" "dist/dos2unix-rust-${{ matrix.suffix }}.exe"
+          }
+          # gzip-rust
+          if (Test-Path "target/${{ matrix.target }}/release/rgzip.exe") {
+            Copy-Item "target/${{ matrix.target }}/release/rgzip.exe" "dist/rgzip-${{ matrix.suffix }}.exe"
+          }
+          # htop-win-rust
+          if (Test-Path "target/${{ matrix.target }}/release/htop-win-rust.exe") {
+            Copy-Item "target/${{ matrix.target }}/release/htop-win-rust.exe" "dist/htop-win-rust-${{ matrix.suffix }}.exe"
+          }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-binaries-${{ matrix.suffix }}
+          path: dist/*
+
+  build-go:
+    name: Build Go (${{ matrix.goos }}-${{ matrix.goarch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Build gzip-go
+        working-directory: gzip/go
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p ../../dist
+          ext=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
+          go build -o "../../dist/gzip-go-${{ matrix.suffix }}${ext}" ./cmd/gzip-go
+        shell: bash
+
+      - name: Build htop-win-go (Windows only)
+        if: matrix.goos == 'windows'
+        working-directory: htop/win/go
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p ../../../dist
+          go build -o "../../../dist/htop-win-go-${{ matrix.suffix }}.exe" ./cmd/htop-win
+        shell: bash
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-binaries-${{ matrix.suffix }}
+          path: dist/*
+
+  release:
+    name: Create Release
+    needs: [build-rust, build-go]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Extract changelog for this version
+          if [ -f CHANGELOG.md ]; then
+            # Try to extract section for this version
+            sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | head -n -1 > release_notes.md || true
+          fi
+          
+          if [ ! -s release_notes.md ]; then
+            echo "Release $VERSION" > release_notes.md
+            echo "" >> release_notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.release_notes.outputs.version }}
+          body_path: release_notes.md
+          files: release/*
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
