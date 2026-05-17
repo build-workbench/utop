@@ -1,90 +1,90 @@
 ---
-title: gzip - Compression Tool
+title: gzip - 压缩工具
 ---
 
 # gzip
 
-Multi-language implementation (Go + Rust) of the gzip compression/decompression tool.
+多语言实现（Go + Rust）的 gzip 压缩/解压工具。
 
-## Overview
+## 概览
 
-This project provides both Go and Rust implementations of the standard gzip utility, allowing you to compare:
-- Different approaches to streaming compression
-- Error handling patterns in both languages
-- Concurrency models (goroutines vs async)
-- CLI library design (pflag vs clap)
+本项目提供 gzip 标准工具的 Go 和 Rust 两种实现，便于对比：
+- 不同流式压缩方法
+- 两种语言的错误处理模式
+- 并发模型（goroutine vs async）
+- CLI 库设计（pflag vs clap）
 
-## Features
+## 特性
 
-### Both Implementations
+### 两种实现共有
 
-- ✅ **Streaming compression/decompression**
-- ✅ **Multiple compression levels** (0-9)
-- ✅ **Keep source files** (`-k` flag)
-- ✅ **Force overwrite** (`-f` flag)
-- ✅ **Recursive directory support** (`-r` flag)
-- ✅ **stdin/stdout support**
+- ✅ **流式压缩/解压**
+- ✅ **多种压缩级别**（0-9）
+- ✅ **保留源文件**（`-k` 参数）
+- ✅ **强制覆盖**（`-f` 参数）
+- ✅ **递归目录支持**（`-r` 参数）
+- ✅ **stdin/stdout 支持**
 
-### Go Implementation
+### Go 实现
 
-- Parallel file processing with goroutines
-- Standard library `compress/gzip`
-- Built-in concurrency support
+- 使用 goroutine 并行处理文件
+- 标准库 `compress/gzip`
+- 内置并发支持
 
-### Rust Implementation
+### Rust 实现
 
-- Library crate for embedding
-- `clap` derive macros for CLI
-- `flate2` for DEFLATE compression
+- 库 crate 可嵌入其他项目
+- `clap` 派生宏处理 CLI
+- `flate2` 实现 DEFLATE 压缩
 
-## Quick Start
+## 快速开始
 
 ```bash
-# Build Go version
+# 构建 Go 版本
 cd gzip/go && go build -o bin/gzip-go ./cmd/gzip-go
 
-# Build Rust version
+# 构建 Rust 版本
 cargo build --release -p rgzip
 
-# Compress a file
+# 压缩文件
 ./gzip/go/bin/gzip-go file.txt
 ./target/release/rgzip file.txt
 
-# Decompress
+# 解压
 ./gzip/go/bin/gzip-go -d file.txt.gz
 ./target/release/rgzip -d file.txt.gz
 
-# With options
-./target/release/rgzip -k -l 9 file.txt  # Keep source, max compression
+# 带参数
+./target/release/rgzip -k -l 9 file.txt  # 保留源文件，最大压缩
 ```
 
-## Learning Topics
+## 学习主题
 
-| Topic | Go | Rust |
-|-------|:--:|:----:|
-| Streaming | ✅ | ✅ |
-| Concurrency | ✅ goroutines | ✅ async |
-| Error Handling | ✅ error type | ✅ anyhow/Result |
-| CLI Framework | ✅ pflag | ✅ clap |
-| Library Design | ✅ | ✅ |
+| 主题 | Go | Rust |
+|------|:--:|:----:|
+| 流式处理 | ✅ | ✅ |
+| 并发 | ✅ goroutine | ✅ async |
+| 错误处理 | ✅ error 类型 | ✅ anyhow/Result |
+| CLI 框架 | ✅ pflag | ✅ clap |
+| 库设计 | ✅ | ✅ |
 
-## Comparison Highlights
+## 对比要点
 
-| Aspect | Go | Rust |
-|--------|:--:|:----:|
-| Binary Size | ~4MB | ~2MB |
-| Build Time | Fast | Moderate |
-| Memory | GC managed | Ownership system |
-| Safety | Runtime checks | Compile-time checks |
+| 方面 | Go | Rust |
+|------|:--:|:----:|
+| 二进制大小 | ~4MB | ~2MB |
+| 构建时间 | 快 | 中等 |
+| 内存管理 | GC 管理 | 所有权系统 |
+| 安全性 | 运行时检查 | 编译时检查 |
 
-## Source Code
+## 源代码
 
-- [Go Implementation](https://github.com/LessUp/build-your-own-tools/tree/master/gzip/go)
-- [Rust Implementation](https://github.com/LessUp/build-your-own-tools/tree/master/gzip/rust)
-- [Go Changelog](/gzip/go/changelog/CHANGELOG.md)
-- [Rust Changelog](/gzip/rust/changelog/CHANGELOG.md)
+- [Go 实现](https://github.com/LessUp/build-your-own-tools/tree/master/gzip/go)
+- [Rust 实现](https://github.com/LessUp/build-your-own-tools/tree/master/gzip/rust)
+- [Go 变更日志](/gzip/go/changelog/CHANGELOG.md)
+- [Rust 变更日志](/gzip/rust/changelog/CHANGELOG.md)
 
-## Related
+## 相关
 
-- [dos2unix](/dos2unix/) - Line ending converter
-- [htop](/htop/) - System monitor
+- [dos2unix](/dos2unix/) - 换行符转换器
+- [htop](/htop/) - 系统监控

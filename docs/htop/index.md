@@ -1,102 +1,102 @@
 ---
-title: htop - System Monitor
+title: htop - 系统监控
 ---
 
 # htop
 
-Cross-platform TUI (Terminal User Interface) system monitor with multiple implementations.
+跨平台 TUI（终端用户界面）系统监控，多种实现版本。
 
-## Overview
+## 概览
 
-This project implements an interactive system monitor similar to the popular `htop` utility, with versions for:
-- **Unix/Linux** (Rust + ratatui)
-- **Windows** (Rust + ratatui)
-- **Windows** (Go + tview)
+本项目实现类似流行 `htop` 工具的交互式系统监控，支持：
+- **Unix/Linux**（Rust + ratatui）
+- **Windows**（Rust + ratatui）
+- **Windows**（Go + tview）
 
-Perfect for learning:
-- TUI development
-- System programming
-- Process management
-- Cross-platform development
+适合学习：
+- TUI 开发
+- 系统编程
+- 进程管理
+- 跨平台开发
 
-## Features
+## 特性
 
-### Core Features
+### 核心功能
 
-- ✅ **Real-time CPU/Memory monitoring**
-- ✅ **Process list with sorting** (CPU, Memory, PID, Name)
-- ✅ **Process search/filter**
-- ✅ **Process kill functionality**
-- ✅ **Adjustable refresh interval**
-- ✅ **Color-coded usage indicators**
+- ✅ **实时 CPU/内存监控**
+- ✅ **进程列表排序**（CPU、内存、PID、名称）
+- ✅ **进程搜索/过滤**
+- ✅ **进程终止功能**
+- ✅ **可调刷新间隔**
+- ✅ **颜色编码使用率指示器**
 
-### Platform-Specific
+### 平台特定功能
 
-| Feature | Unix Rust | Win Rust | Win Go |
-|---------|:---------:|:--------:|:------:|
-| Process List | ✅ | ✅ | ✅ |
-| CPU/Memory | ✅ | ✅ | ✅ |
-| Process Kill | ✅ | ✅ | ✅ |
-| Sparkline History | - | ✅ | - |
-| Network Stats | Planned | Planned | Planned |
+| 功能 | Unix Rust | Win Rust | Win Go |
+|------|:---------:|:--------:|:------:|
+| 进程列表 | ✅ | ✅ | ✅ |
+| CPU/内存 | ✅ | ✅ | ✅ |
+| 进程终止 | ✅ | ✅ | ✅ |
+| Sparkline 历史 | - | ✅ | - |
+| 网络统计 | 计划中 | 计划中 | 计划中 |
 
-## Quick Start
+## 快速开始
 
 ```bash
-# Build Unix version (Linux/macOS)
+# 构建 Unix 版本（Linux/macOS）
 cargo build --release -p htop-rust
 
-# Run
+# 运行
 ./target/release/htop-unix-rust
 
-# Build Windows Rust version
+# 构建 Windows Rust 版本
 cargo build --release -p htop-win-rust
 
-# Build Windows Go version
+# 构建 Windows Go 版本
 cd htop/win/go && go build -o bin/htop-win-go ./cmd/htop-win-go
 ```
 
-## Keyboard Shortcuts
+## 键盘快捷键
 
-| Key | Action |
-|-----|--------|
-| `q` | Quit |
-| `k` | Kill selected process |
-| `/` | Search/filter processes |
-| `s` | Change sort column |
-| `+`/`-` | Adjust refresh interval |
-| `↑`/`↓` | Navigate process list |
+| 按键 | 操作 |
+|------|------|
+| `q` | 退出 |
+| `k` | 终止选中进程 |
+| `/` | 搜索/过滤进程 |
+| `s` | 切换排序列 |
+| `+`/`-` | 调整刷新间隔 |
+| `↑`/`↓` | 导航进程列表 |
 
-## Learning Topics
+## 学习主题
 
-| Topic | Description |
-|-------|-------------|
-| TUI Development | ratatui (Rust) / tview (Go) |
-| System APIs | Process info, CPU, memory stats |
-| Event Handling | Keyboard input, async refresh |
-| Cross-platform | Unix vs Windows differences |
-| Concurrency | Async refresh loops |
+| 主题 | 描述 |
+|------|------|
+| TUI 开发 | ratatui (Rust) / tview (Go) |
+| 系统 API | 进程信息、CPU、内存统计 |
+| 事件处理 | 键盘输入、异步刷新 |
+| 跨平台 | Unix vs Windows 差异 |
+| 并发 | 异步刷新循环 |
 
-## Architecture
+## 架构
 
 ```
 htop/
-├── shared/          # Shared Rust library
-├── unix/rust/       # Unix implementation
+├── shared/          # 共享 Rust 库
+├── unix/rust/       # Unix 实现
 └── win/
-    ├── rust/        # Windows Rust implementation
-    └── go/          # Windows Go implementation
+    ├── rust/        # Windows Rust 实现
+    └── go/          # Windows Go 实现
 ```
 
-## Source Code
+## 源代码
 
-- [Shared Library](https://github.com/LessUp/build-your-own-tools/tree/master/htop/shared)
+- [共享库](https://github.com/LessUp/build-your-own-tools/tree/master/htop/shared)
 - [Unix Rust](https://github.com/LessUp/build-your-own-tools/tree/master/htop/unix/rust)
 - [Windows Rust](https://github.com/LessUp/build-your-own-tools/tree/master/htop/win/rust)
 - [Windows Go](https://github.com/LessUp/build-your-own-tools/tree/master/htop/win/go)
-- [Changelog](/htop/changelog/CHANGELOG.md)
+- [变更日志](/htop/changelog/CHANGELOG.md)
 
-## Related
+## 相关
 
-- [dos2unix](/dos2unix/) - Line ending converter
-- [gzip](/gzip/) - Compression tool
+- [dos2unix](/dos2unix/) - 换行符转换器
+- [gzip](/gzip/) - 压缩工具

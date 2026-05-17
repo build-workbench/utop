@@ -1,63 +1,63 @@
 ---
-title: dos2unix - CRLF to LF Converter
+title: dos2unix - CRLF 转 LF 转换器
 ---
 
 # dos2unix
 
-A Rust implementation of CRLF (Windows) to LF (Unix) line ending converter.
+Rust 实现的 CRLF（Windows）到 LF（Unix）换行符转换器。
 
-## Overview
+## 概览
 
-This tool converts Windows-style line endings (CRLF, `\r\n`) to Unix-style line endings (LF, `\n`). It's perfect for:
-- Normalizing files across different operating systems
-- Preparing files for Unix/Linux environments
-- Learning about file I/O and streaming processing in Rust
+本工具将 Windows 风格换行符（CRLF，`\r\n`）转换为 Unix 风格换行符（LF，`\n`）。适用于：
+- 跨操作系统文件标准化
+- 为 Unix/Linux 环境准备文件
+- 学习 Rust 中的文件 I/O 和流式处理
 
-## Features
+## 特性
 
-- ✅ **Streaming processing** - 8KB buffer for memory-efficient large file handling
-- ✅ **In-place conversion** - Modify files directly
-- ✅ **stdin/stdout support** - Pipeline-friendly
-- ✅ **Check mode** - Detect CRLF without modification
-- ✅ **Quiet mode** - Minimal output for scripts
+- ✅ **流式处理** - 8KB 缓冲区，内存高效处理大文件
+- ✅ **原地转换** - 直接修改文件
+- ✅ **stdin/stdout 支持** - 支持管道操作
+- ✅ **检查模式** - 检测 CRLF 而不修改
+- ✅ **静默模式** - 最小输出，适合脚本
 
-## Quick Start
+## 快速开始
 
 ```bash
-# Build
+# 构建
 cargo build --release -p dos2unix-rust
 
-# Convert a file
+# 转换文件
 ./target/release/dos2unix-rust file.txt
 
-# Check for CRLF (exit code 2 if found)
+# 检查 CRLF（发现则返回退出码 2）
 ./target/release/dos2unix-rust --check file.txt
 
-# Pipeline usage
+# 管道用法
 echo "Hello\r\nWorld" | ./target/release/dos2unix-rust
 ```
 
-## Learning Topics
+## 学习主题
 
-| Topic | Description |
-|-------|-------------|
-| File I/O | Streaming read/write with buffered I/O |
-| Error Handling | Using `anyhow` for ergonomic error propagation |
-| CLI Design | Manual argument parsing |
-| Cross-platform | Handling different line endings |
+| 主题 | 描述 |
+|------|------|
+| 文件 I/O | 使用缓冲 I/O 进行流式读写 |
+| 错误处理 | 使用 `anyhow` 进行符合人体工程学的错误传播 |
+| CLI 设计 | 手动参数解析 |
+| 跨平台 | 处理不同换行符 |
 
-## Technical Details
+## 技术细节
 
-- **Buffer Size**: 8KB for optimal streaming performance
-- **Memory Usage**: O(1) - constant memory regardless of file size
-- **Performance**: ~120 MB/s on large files
+- **缓冲区大小**：8KB，优化流式性能
+- **内存使用**：O(1) - 无论文件大小，内存恒定
+- **性能**：大文件约 120 MB/s
 
-## Source Code
+## 源代码
 
-- [Main Implementation](https://github.com/LessUp/build-your-own-tools/tree/master/dos2unix/src)
-- [Changelog](/dos2unix/changelog/CHANGELOG.md)
+- [主实现](https://github.com/LessUp/build-your-own-tools/tree/master/dos2unix/src)
+- [变更日志](/dos2unix/changelog/CHANGELOG.md)
 
-## Related
+## 相关
 
-- [gzip](/gzip/) - Compression tool
-- [htop](/htop/) - System monitor
+- [gzip](/gzip/) - 压缩工具
+- [htop](/htop/) - 系统监控
