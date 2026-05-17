@@ -1,3 +1,4 @@
+// 注意：此 URL 应与 .vitepress/config/deploy.ts 中的 PREVIEW_URL 保持一致
 module.exports = {
   ci: {
     collect: {

@@ -1,6 +1,9 @@
 import { useData } from 'vitepress'
 import { translations, type TranslationKey } from '../i18n/translations'
 
+// 定义支持的语言类型
+type SupportedLang = 'zh-CN' | 'en'
+
 /**
  * 翻译组合式函数
  * 根据当前语言返回对应的翻译文本
@@ -27,7 +30,7 @@ export function useTranslation() {
    */
   function t(key: TranslationKey): string {
     // VitePress 的 root locale 对应中文
-    const langKey = lang.value === 'root' ? 'zh-CN' : lang.value
+    const langKey: SupportedLang = lang.value === 'root' ? 'zh-CN' : (lang.value as SupportedLang) || 'en'
     return translations[langKey]?.[key] || translations['en'][key] || key
   }
 

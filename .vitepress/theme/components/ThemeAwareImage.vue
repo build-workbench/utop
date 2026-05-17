@@ -6,7 +6,7 @@ const props = defineProps<{
   lightSrc: string
   darkSrc: string
   alt?: string
-  class?: string
+  className?: string
 }>()
 
 const { isDark } = useData()
@@ -15,5 +15,5 @@ const src = computed(() => isDark.value ? props.darkSrc : props.lightSrc)
 </script>
 
 <template>
-  <img :src="src" :alt="alt || ''" :class="class" />
+  <img :src="src" :alt="alt || ''" :class="className" />
 </template>
