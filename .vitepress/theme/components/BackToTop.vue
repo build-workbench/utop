@@ -4,7 +4,7 @@
       v-show="visible"
       class="back-to-top"
       @click="scrollToTop"
-      aria-label="返回顶部"
+      :aria-label="t('returnToTop')"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M18 15l-6-6-6 6" />
@@ -15,7 +15,9 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useTranslation } from '../composables/useTranslation'
 
+const { t } = useTranslation()
 const visible = ref(false)
 
 function toggleVisible() {
