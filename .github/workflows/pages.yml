@@ -1,32 +1,45 @@
 name: Docs
 
-# 定义可复用的路径模式
-definitions:
-  doc_paths: &doc_paths
-    - "index.md"
-    - "README.md"
-    - "README.zh-CN.md"
-    - "CHANGELOG.md"
-    - "CONTRIBUTING.md"
-    - "CODE_OF_CONDUCT.md"
-    - "SECURITY.md"
-    - "docs/**"
-    - "en/**"
-    - "public/**"
-    - "dos2unix/**/*.md"
-    - "gzip/**/*.md"
-    - "htop/**/*.md"
-    - ".vitepress/**"
-    - "package.json"
-    - "package-lock.json"
-    - ".github/workflows/pages.yml"
-
 "on":
   push:
     branches: [master, main]
-    paths: *doc_paths
+    paths:
+      - "index.md"
+      - "README.md"
+      - "README.zh-CN.md"
+      - "CHANGELOG.md"
+      - "CONTRIBUTING.md"
+      - "CODE_OF_CONDUCT.md"
+      - "SECURITY.md"
+      - "docs/**"
+      - "en/**"
+      - "public/**"
+      - "dos2unix/**/*.md"
+      - "gzip/**/*.md"
+      - "htop/**/*.md"
+      - ".vitepress/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/pages.yml"
   pull_request:
-    paths: *doc_paths
+    paths:
+      - "index.md"
+      - "README.md"
+      - "README.zh-CN.md"
+      - "CHANGELOG.md"
+      - "CONTRIBUTING.md"
+      - "CODE_OF_CONDUCT.md"
+      - "SECURITY.md"
+      - "docs/**"
+      - "en/**"
+      - "public/**"
+      - "dos2unix/**/*.md"
+      - "gzip/**/*.md"
+      - "htop/**/*.md"
+      - ".vitepress/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 concurrency:
