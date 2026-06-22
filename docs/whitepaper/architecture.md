@@ -28,8 +28,6 @@ graph TB
     end
     
     subgraph "工程化"
-        E1[OpenSpec] --> E2[需求]
-        E1 --> E3[变更]
         E4[CI/CD] --> E5[构建]
         E4 --> E6[测试]
         E4 --> E7[发布]
@@ -37,7 +35,6 @@ graph TB
     
     style U fill:#f59e0b,color:#fff
     style CLI fill:#3b82f6,color:#fff
-    style E1 fill:#10b981,color:#fff
     style E4 fill:#10b981,color:#fff
 ```
 
@@ -52,7 +49,6 @@ graph LR
     A[build-your-own-tools] --> B[dos2unix/]
     A --> C[gzip/]
     A --> D[htop/]
-    A --> E[openspec/]
     A --> F[docs/]
     A --> G[.github/]
     
@@ -273,24 +269,6 @@ graph LR
     style A fill:#f59e0b,color:#fff
     style E fill:#3b82f6,color:#fff
     style H fill:#10b981,color:#fff
-```
-
-### OpenSpec 工作流
-
-```mermaid
-stateDiagram-v2
-    [*] --> Proposal: 提交提案
-    Proposal --> Design: 设计文档
-    Design --> Tasks: 任务分解
-    Tasks --> Implementation: 开始实现
-    Implementation --> Review: 代码审查
-    Review --> Archived: 合并入档
-    Archived --> [*]
-    
-    note right of Proposal: openspec/changes/
-    note right of Design: design.md
-    note right of Tasks: tasks.md
-    note right of Archived: archive/
 ```
 
 ## 技术债务

@@ -343,5 +343,4 @@ build-go:
 ## 相关文档
 
 - [工程实践概览](/engineering/) — 工程化总览
-- [OpenSpec 工作流](/specs/openspec-workflow) — 变更管理
 - [文档策略](/engineering/documentation) — 文档部署

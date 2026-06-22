@@ -44,7 +44,7 @@ linters-settings:
     simplify: true
 
   goimports:
-    local-prefixes: gzip-go,htop-win-go
+    local-prefixes: gzip-go,htop-go,htop-win-go
 
   gocritic:
     enabled-tags:

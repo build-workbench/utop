@@ -1,0 +1,10 @@
+[package]
+name = "htop-shared"
+version = "0.1.5"
+edition.workspace = true
+license.workspace = true
+description = "Shared logic for htop Rust implementations (Unix and Windows)."
+
+[dependencies]
+sysinfo.workspace = true
+ratatui.workspace = true

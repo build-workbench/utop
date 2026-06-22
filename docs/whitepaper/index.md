@@ -19,8 +19,6 @@ graph TB
     end
 
     subgraph "工程化层"
-        E[OpenSpec] --> F[需求规范]
-        E --> G[变更管理]
         H[CI/CD] --> I[GitHub Actions]
         J[文档站] --> K[VitePress]
     end
@@ -33,7 +31,7 @@ graph TB
     end
 
     style A fill:#f59e0b,color:#fff
-    style E fill:#10b981,color:#fff
+    style H fill:#10b981,color:#fff
     style L fill:#3b82f6,color:#fff
     style O fill:#06b6d4,color:#fff
 ```
@@ -62,7 +60,6 @@ graph TB
 
 不是玩具项目，而是完整的工程实践：
 
-- OpenSpec 需求规范
 - GitHub Actions CI/CD
 - 跨平台构建
 - 自动化发布
@@ -81,5 +78,4 @@ dos2unix (⭐) → gzip (⭐⭐) → htop (⭐⭐⭐)
 
 - 📖 阅读 [项目概览](/whitepaper/overview) 了解项目定位
 - 🏗️ 查看 [系统架构](/whitepaper/architecture) 理解整体设计
-- 📋 浏览 [技术规范](/specs/) 了解需求规格
 - 🔬 研究 [对比研究](/comparison/) 深入语言差异

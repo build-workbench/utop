@@ -19,7 +19,7 @@ export const zhCN: LocaleConfig[string] = {
     lightModeSwitchTitle: '切换到浅色模式',
     darkModeSwitchTitle: '切换到深色模式',
     editLink: {
-      pattern: 'https://github.com/LessUp/build-your-own-tools/edit/master/:path',
+      pattern: 'https://github.com/LessUp/build-your-own-tools/edit/master/docs/:path',
       text: '在 GitHub 上编辑此页'
     },
     lastUpdated: {
@@ -52,7 +52,6 @@ export const zhCN: LocaleConfig[string] = {
     },
     nav: [
       { text: '白皮书', link: '/whitepaper/', activeMatch: '/whitepaper/' },
-      { text: '技术规范', link: '/specs/', activeMatch: '/specs/' },
       { text: '对比研究', link: '/comparison/', activeMatch: '/comparison/' },
       {
         text: '工具实现',
@@ -66,7 +65,7 @@ export const zhCN: LocaleConfig[string] = {
       {
         text: '更多',
         items: [
-          { text: '📋 变更日志', link: '/CHANGELOG' },
+          { text: '📋 变更日志', link: 'https://github.com/LessUp/build-your-own-tools/blob/master/CHANGELOG.md' },
           { text: '🚀 快速开始', link: '/docs/setup/GETTING-STARTED' },
           { text: '⭐ GitHub', link: 'https://github.com/LessUp/build-your-own-tools' },
         ]
@@ -82,18 +81,6 @@ export const zhCN: LocaleConfig[string] = {
             { text: '系统架构', link: '/whitepaper/architecture' },
             { text: '设计决策', link: '/whitepaper/decisions' },
             { text: '性能分析', link: '/whitepaper/performance' },
-          ]
-        },
-      ],
-      '/specs/': [
-        {
-          text: '技术规范',
-          items: [
-            { text: '概览', link: '/specs/' },
-            { text: 'OpenSpec 工作流', link: '/specs/openspec-workflow' },
-            { text: 'dos2unix 规范', link: '/specs/dos2unix' },
-            { text: 'gzip 规范', link: '/specs/gzip' },
-            { text: 'htop 规范', link: '/specs/htop' },
           ]
         },
       ],
@@ -114,7 +101,6 @@ export const zhCN: LocaleConfig[string] = {
           text: '工程实践',
           items: [
             { text: '概览', link: '/engineering/' },
-            { text: 'AI 协作指南', link: '/engineering/ai-collaboration' },
             { text: 'CI/CD 设计', link: '/engineering/cicd' },
             { text: '文档策略', link: '/engineering/documentation' },
           ]

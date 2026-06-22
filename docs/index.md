@@ -10,10 +10,10 @@ hero:
   actions:
     - theme: brand
       text: 开始学习
-      link: /docs/academy/
+      link: /academy/
     - theme: alt
       text: 查看架构
-      link: /docs/whitepaper/architecture
+      link: /whitepaper/architecture
     - theme: alt
       text: GitHub
       link: https://github.com/LessUp/build-your-own-tools
@@ -22,15 +22,15 @@ features:
   - icon: 🏗️
     title: 架构对比
     details: 同一问题的 Rust 与 Go 实现，深入分析两种语言的设计哲学差异
-  - icon: 📋
-    title: OpenSpec 规范
-    details: Gherkin 风格的需求规格，从需求到实现的完整追踪
   - icon: 📊
     title: 性能分析
     details: 跨语言性能基准，内存模型与并发模型对比研究
-  - icon: 🤖
-    title: AI 协作
-    details: AGENTS.md + CLAUDE.md 治理层设计，AI 辅助工程实践
+  - icon: 🧪
+    title: 可构建实现
+    details: 三个真实 CLI 工具的完整源码，cargo 与 go 命令即可构建测试
+  - icon: 📖
+    title: 渐进学习
+    details: 从流式 I/O 到跨平台 TUI，复杂度逐级递增的学习路径
 ---
 
 ## 技术白皮书概览
@@ -71,16 +71,14 @@ graph LR
 - **Rust**: 系统编程、内存安全、零成本抽象
 - **Go**: 并发模型、简洁语法、快速开发
 - **VitePress**: 文档站点、Mermaid 图表、LLM 友好输出
-- **OpenSpec**: 需求规范、变更管理、Gherkin 场景
 
 ## 快速导航
 
 <div class="quick-links">
 
-[学院](/docs/academy/){.VPButton}
-[白皮书](/docs/whitepaper/){.VPButton .alt}
-[技术规范](/docs/specs/){.VPButton .alt}
-[对比研究](/docs/comparison/){.VPButton .alt}
+[学院](/academy/){.VPButton}
+[白皮书](/whitepaper/){.VPButton .alt}
+[对比研究](/comparison/){.VPButton .alt}
 
 </div>
 

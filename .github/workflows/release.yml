@@ -53,9 +53,9 @@ jobs:
           if [ -f "target/${{ matrix.target }}/release/rgzip" ]; then
             cp "target/${{ matrix.target }}/release/rgzip" "dist/rgzip-${{ matrix.suffix }}"
           fi
-          # htop-unix-rust
-          if [ -f "target/${{ matrix.target }}/release/htop-unix-rust" ]; then
-            cp "target/${{ matrix.target }}/release/htop-unix-rust" "dist/htop-unix-rust-${{ matrix.suffix }}"
+          # htop-unix-rust (binary is named htop-rust)
+          if [ -f "target/${{ matrix.target }}/release/htop-rust" ]; then
+            cp "target/${{ matrix.target }}/release/htop-rust" "dist/htop-unix-rust-${{ matrix.suffix }}"
           fi
           # htop-win-rust (only on Windows target)
           if [ -f "target/${{ matrix.target }}/release/htop-win-rust" ]; then

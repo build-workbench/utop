@@ -21,12 +21,9 @@ graph TB
     
     subgraph "变更文档"
         H[CHANGELOG.md]
-        I[OpenSpec 变更]
     end
     
     subgraph "治理文档"
-        J[AGENTS.md]
-        K[CLAUDE.md]
         L[README.md]
     end
     
@@ -48,12 +45,6 @@ docs/
 │   ├── architecture.md
 │   ├── decisions.md
 │   └── performance.md
-├── specs/                # 技术规范
-│   ├── index.md
-│   ├── openspec-workflow.md
-│   ├── dos2unix.md
-│   ├── gzip.md
-│   └── htop.md
 ├── comparison/           # 对比研究
 │   ├── index.md
 │   ├── memory.md

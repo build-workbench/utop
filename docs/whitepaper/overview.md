@@ -16,7 +16,7 @@
 
 - ✅ **系统编程案例研究** — 真实 CLI 工具的完整实现
 - ✅ **语言对比实验室** — 同一问题的双语言实现
-- ✅ **工程化实践** — OpenSpec、CI/CD、跨平台构建
+- ✅ **工程化实践** — CI/CD、跨平台构建
 
 ## 技术选型
 
@@ -81,10 +81,6 @@ build-your-own-tools/
 │       ├── go/
 │       └── rust/
 │
-├── openspec/          # 需求规范
-│   ├── specs/         # 功能规格
-│   └── changes/       # 变更管理
-│
 ├── docs/              # 技术文档
 ├── .vitepress/        # 文档站点
 └── .github/           # CI/CD 工作流
@@ -103,8 +99,7 @@ build-your-own-tools/
 
 1. 直接阅读 **对比研究** 章节
 2. 分析 **设计决策** 理解技术选型
-3. 研究 **OpenSpec 规范** 学习需求工程
-4. 贡献新的工具实现
+3. 贡献新的工具实现
 
 ### 架构师路径
 
@@ -113,30 +108,7 @@ build-your-own-tools/
 3. 研究 **跨平台策略** 学习平台适配
 4. 评估 **技术债务** 和演进方向
 
-## 核心资产
-
-### OpenSpec 规范
-
-采用 Gherkin 风格的需求规格，示例：
-
-```gherkin
-Feature: 换行符转换
-  Scenario: DOS 到 Unix 转换
-    Given 输入文件包含 CRLF 换行符
-    When 执行 dos2unix
-    Then 输出文件应仅包含 LF 换行符
-```
-
-### 治理层设计
-
-- **AGENTS.md** — AI 协作指南
-- **CLAUDE.md** — Claude 特定指令
-- **copilot-instructions.md** — GitHub Copilot 配置
-
-这是 AI 辅助开发的最佳实践示例。
-
 ## 下一步
 
 - 🏗️ [系统架构](/whitepaper/architecture) — 深入了解设计
-- 📋 [技术规范](/specs/) — 查看需求规格
 - 🔬 [对比研究](/comparison/) — Rust vs Go 分析
