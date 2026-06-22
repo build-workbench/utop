@@ -10,20 +10,19 @@ Build Your Own Tools is a monorepo for learning systems programming by re-implem
 
 - the tool implementations themselves
 - the Rust vs Go trade-offs
-- shared engineering surfaces such as specs, CI, releases, and docs
+- shared engineering surfaces such as CI, releases, and docs
 
 ## Core design principles
 
 1. **Teach by implementation** - each tool is real enough to show meaningful trade-offs.
 2. **Compare languages on the same problem** - gzip and htop expose idiomatic differences clearly.
-3. **Keep engineering visible** - build scripts, OpenSpec, CI, and the docs site are part of the project surface.
+3. **Keep engineering visible** - build scripts, CI, and the docs site are part of the project surface.
 4. **Prefer a small, coherent tool set** - depth is more valuable than a large but inconsistent catalog.
 
 ## Repository map
 
 ```text
 build-your-own-tools/
-├── openspec/                  repository-wide specs and active changes
 ├── docs/                      supporting documentation
 ├── .vitepress/                docs site configuration
 ├── .github/workflows/         CI, Pages, release, and maintenance workflows
@@ -61,22 +60,6 @@ npm run docs:build
 
 - `make` covers Rust and Go implementations.
 - npm scripts cover the docs site and typed VitePress checks.
-
-## OpenSpec and workflow model
-
-Repository-wide work is tracked through OpenSpec:
-
-- `openspec/specs/` holds stable project requirements
-- `openspec/changes/` holds active or historical changes
-- `.opencode/commands/` exposes `/opsx:*` commands for the same workflow
-
-For a non-trivial change, the expected sequence is:
-
-1. propose the change
-2. write/update specs and design
-3. implement against tasks
-4. verify with the existing commands
-5. archive when complete
 
 ## Public surfaces
 

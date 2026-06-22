@@ -10,7 +10,7 @@
 
 Rebuild real CLI tools in **Rust** and **Go** to learn file I/O, compression, TUI design, cross-platform behavior, and the trade-offs between two systems languages.
 
-[Live Site](https://lessup.github.io/build-your-own-tools/) · [Getting Started](docs/setup/GETTING-STARTED.md) · [Architecture](docs/architecture/ARCHITECTURE.md) · [Rust vs Go Comparison](docs/tutorials/COMPARISON.md)
+[Live Site](https://lessup.github.io/build-your-own-tools/) · [Getting Started](docs/docs/setup/GETTING-STARTED.md) · [Architecture](docs/docs/architecture/ARCHITECTURE.md) · [Rust vs Go Comparison](docs/docs/tutorials/COMPARISON.md)
 
 ## Included projects
 
@@ -24,7 +24,6 @@ Rebuild real CLI tools in **Rust** and **Go** to learn file I/O, compression, TU
 
 - **One idea, two implementations**: compare Rust and Go on the same problem space.
 - **Progressive complexity**: start with a small streaming tool and end with a cross-platform terminal UI.
-- **Spec-driven development**: repository-wide changes are tracked with OpenSpec instead of ad hoc drift.
 - **Practical engineering**: shared build commands, CI, release automation, and a documentation site are part of the learning surface.
 
 ## Quick start
@@ -42,17 +41,6 @@ printf 'hello\r\nworld\r\n' | ./target/release/dos2unix-rust
 
 ## Development workflow
 
-Repository-wide work follows OpenSpec:
-
-```bash
-openspec list
-/opsx:propose "describe the change"
-/opsx:apply
-/opsx:archive
-```
-
-For implementation and review:
-
 ```bash
 make lint-all
 make test-all
@@ -60,16 +48,13 @@ npm run docs:check
 npm run docs:build
 ```
 
-See [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md), and [.github/copilot-instructions.md](.github/copilot-instructions.md) for the shared AI-assisted workflow rules used in this repository.
-
 ## Documentation map
 
 | Document | Purpose |
 | --- | --- |
-| [Getting Started](docs/setup/GETTING-STARTED.md) | set up the toolchains and run the project |
-| [Architecture](docs/architecture/ARCHITECTURE.md) | understand repo structure and system design |
-| [Comparison](docs/tutorials/COMPARISON.md) | compare Rust and Go design choices |
-| [Project spec](openspec/specs/project/spec.md) | project-wide standards and workflow requirements |
+| [Getting Started](docs/docs/setup/GETTING-STARTED.md) | set up the toolchains and run the project |
+| [Architecture](docs/docs/architecture/ARCHITECTURE.md) | understand repo structure and system design |
+| [Comparison](docs/docs/tutorials/COMPARISON.md) | compare Rust and Go design choices |
 | [CHANGELOG.md](CHANGELOG.md) | project release history |
 
 ## License

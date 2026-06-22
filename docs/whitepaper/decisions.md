@@ -8,7 +8,6 @@
 |------|------|------|------|
 | ADR-001 | 选择 Rust 和 Go 作为实现语言 | 已采纳 | 2025-01 |
 | ADR-002 | 采用 Monorepo 架构 | 已采纳 | 2025-01 |
-| ADR-003 | 使用 OpenSpec 进行需求管理 | 已采纳 | 2025-02 |
 | ADR-004 | gzip 采用库 + 二进制模式 | 已采纳 | 2025-02 |
 | ADR-005 | htop 使用平台抽象层 | 已采纳 | 2025-03 |
 
@@ -122,67 +121,6 @@ graph LR
 - 正面：简化 CI/CD
 - 负面：仓库体积增长
 - 负面：权限粒度粗
-
----
-
-## ADR-003: 使用 OpenSpec 进行需求管理
-
-### 状态
-
-已采纳 (2025-02)
-
-### 背景
-
-需要一种规范化的方式来管理需求和变更，使学习过程更加透明。
-
-### 决策
-
-创建 **OpenSpec** 规范框架，采用 Gherkin 风格的需求描述。
-
-### 理由
-
-**OpenSpec 结构**：
-
-```
-openspec/
-├── specs/           # 功能规格
-│   ├── project/     # 项目级规范
-│   ├── dos2unix/    # 工具规范
-│   ├── gzip/
-│   └── htop/
-├── changes/         # 变更管理
-│   ├── archive/     # 已完成变更
-│   └── active/      # 当前变更
-└── schemas/         # 规范模板
-```
-
-**Gherkin 风格示例**：
-
-```gherkin
-Feature: 换行符转换
-  As a 用户
-  I want to 转换文件换行符
-  So that 我可以在不同系统间共享文件
-
-  Scenario: DOS 到 Unix 转换
-    Given 输入文件包含 CRLF 换行符
-    When 执行 dos2unix input.txt
-    Then 输出文件应仅包含 LF 换行符
-    And 文件内容应保持不变
-```
-
-**好处**：
-- 需求可测试
-- 变更可追踪
-- 易于 AI 理解
-- 文档即代码
-
-### 后果
-
-- 正面：需求清晰可追溯
-- 正面：支持自动化测试
-- 负面：需要学习 Gherkin 语法
-- 负面：维护规范有开销
 
 ---
 
@@ -342,5 +280,4 @@ flowchart TB
 ## 相关文档
 
 - [系统架构](/whitepaper/architecture) — 架构设计详情
-- [OpenSpec 工作流](/specs/openspec-workflow) — 需求管理
 - [CI/CD 设计](/engineering/cicd) — 工作流设计

@@ -39,34 +39,6 @@ This project adheres to our [Code of Conduct](CODE_OF_CONDUCT.md). By participat
 3. Write code and tests
 4. Submit a Pull Request
 
-## Spec-Driven Development
-
-This project follows **Spec-Driven Development (SDD)** methodology.
-
-All implementations must be based on the specification documents in the `/specs` directory.
-
-### Spec Directory Structure
-
-```text
-specs/
-├── product/        # Product requirements and acceptance criteria
-├── rfc/            # Technical design documents (RFCs)
-├── api/            # API/CLI interface definitions
-├── db/             # Data model specifications
-└── testing/        # BDD test case specifications
-```
-
-### AI Agent Workflow
-
-When developing new features, modifying existing functionality, or fixing bugs:
-
-1. **Review Specs First**: Read relevant product docs, RFCs, and API definitions in `/specs`
-2. **Spec-First Update**: For new features or interface changes, propose spec modifications first
-3. **Implementation**: Code must 100% comply with specs (no gold-plating)
-4. **Test Verification**: Write tests based on acceptance criteria in `/specs/testing/`
-
-See [AGENTS.md](AGENTS.md) for the complete SDD workflow.
-
 ## Development Workflow
 
 ### Environment Setup

@@ -29,7 +29,7 @@ if contains_match '(^gzip/go/|^htop/win/go/|\.go$)'; then
     run_step "Go tests" make test-go
 fi
 
-if contains_match '(^docs/|^en/|^public/|^\.vitepress/|^index\.md$|^README(\.zh-CN)?\.md$|^CHANGELOG\.md$|^CONTRIBUTING\.md$|^CODE_OF_CONDUCT\.md$|^SECURITY\.md$|^package(-lock)?\.json$)'; then
+if contains_match '(^docs/|^public/|^\.vitepress/|^README(\.zh-CN)?\.md$|^CHANGELOG\.md$|^CONTRIBUTING\.md$|^CODE_OF_CONDUCT\.md$|^SECURITY\.md$|^package(-lock)?\.json$)'; then
     run_step "Docs check" npm run docs:check
 fi
 

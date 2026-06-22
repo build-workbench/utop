@@ -5,7 +5,7 @@ import { generateSitemap as sitemap } from 'sitemap-ts'
 import { resolveBasePath, SITE_URL } from './config/deploy'
 import { head } from './config/head'
 import { vite } from './config/vite'
-import { zhCN, en } from './config/locales'
+import { zhCN } from './config/locales'
 
 const base = resolveBasePath()
 
@@ -16,23 +16,15 @@ export default withMermaid(defineConfig({
   title: 'Build Your Own Tools',
   description: '系统编程技术白皮书 - Rust × Go 双实现架构对比研究',
   base,
+  srcDir: 'docs',
   cleanUrls: true,
   lastUpdated: true,
   ignoreDeadLinks: true,
-  srcExclude: [
-    'AGENTS.md',
-    'CLAUDE.md',
-    'release-notes.md',
-    'openspec/**',
-    '.opencode/**',
-    '.claude/**',
-    '.github/**',
-  ],
 
   // ===========================================================================
-  // 国际化配置
+  // 国际化配置（仅中文）
   // ===========================================================================
-  locales: { root: zhCN, en },
+  locales: { root: zhCN },
 
   // ===========================================================================
   // 头信息 - SEO 和 PWA 支持

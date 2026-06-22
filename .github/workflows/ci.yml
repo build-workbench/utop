@@ -6,14 +6,12 @@ on:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
-      - "en/**"
       - "public/**"
       - ".vitepress/**"
   pull_request:
     paths-ignore:
       - "**/*.md"
       - "docs/**"
-      - "en/**"
       - "public/**"
       - ".vitepress/**"
   workflow_dispatch:

@@ -57,6 +57,10 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-      - name: Go Security Scan (htop)
+      - name: Go Security Scan (htop unix)
+        working-directory: htop/unix/go
+        run: govulncheck ./...
+
+      - name: Go Security Scan (htop win)
         working-directory: htop/win/go
         run: govulncheck ./...
