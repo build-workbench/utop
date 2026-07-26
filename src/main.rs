@@ -1,5 +1,4 @@
-#![allow(clippy::collapsible_match)]
-
+use std::cmp::Ordering;
 use std::{
     error::Error,
     io,
@@ -19,12 +18,107 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Row, Table, TableState, Wrap},
     Terminal,
 };
-use sysinfo::{CpuExt, Pid, ProcessExt, System, SystemExt};
+use sysinfo::{CpuExt, Pid, PidExt, ProcessExt, System, SystemExt};
 
-// Import from shared library
-use htop_shared::{
-    compare_proc_rows, filter_processes, resolve_selected_index, selected_pid, ProcRow, SortKey,
-};
+// ---------------------------------------------------------------------------
+// Process row model & helpers (formerly htop-shared)
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+struct ProcRow {
+    pid: Pid,
+    name: String,
+    cpu: f32,
+    mem_mb: u64,
+}
+
+impl ProcRow {
+    fn as_row(&self) -> Row<'static> {
+        Row::new(vec![
+            self.pid.as_u32().to_string(),
+            self.name.clone(),
+            format!("{:>6.1}", self.cpu),
+            format!("{:>10}", self.mem_mb),
+        ])
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SortKey {
+    Cpu,
+    Mem,
+    Pid,
+    Name,
+}
+
+fn compare_proc_rows(a: &ProcRow, b: &ProcRow, sort_key: SortKey) -> Ordering {
+    match sort_key {
+        SortKey::Cpu => a
+            .cpu
+            .partial_cmp(&b.cpu)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| a.mem_mb.cmp(&b.mem_mb))
+            .then_with(|| a.pid.as_u32().cmp(&b.pid.as_u32()))
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
+        SortKey::Mem => a
+            .mem_mb
+            .cmp(&b.mem_mb)
+            .then_with(|| a.cpu.partial_cmp(&b.cpu).unwrap_or(Ordering::Equal))
+            .then_with(|| a.pid.as_u32().cmp(&b.pid.as_u32()))
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
+        SortKey::Pid => a
+            .pid
+            .as_u32()
+            .cmp(&b.pid.as_u32())
+            .then_with(|| a.cpu.partial_cmp(&b.cpu).unwrap_or(Ordering::Equal))
+            .then_with(|| a.mem_mb.cmp(&b.mem_mb))
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
+        SortKey::Name => a
+            .name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then_with(|| a.cpu.partial_cmp(&b.cpu).unwrap_or(Ordering::Equal))
+            .then_with(|| a.mem_mb.cmp(&b.mem_mb))
+            .then_with(|| a.pid.as_u32().cmp(&b.pid.as_u32())),
+    }
+}
+
+fn filter_processes(processes: Vec<ProcRow>, query: &str) -> Vec<ProcRow> {
+    if query.is_empty() {
+        return processes;
+    }
+    let q = query.to_lowercase();
+    processes
+        .into_iter()
+        .filter(|row| {
+            row.name.to_lowercase().contains(&q) || row.pid.as_u32().to_string().contains(&q)
+        })
+        .collect()
+}
+
+fn selected_pid(processes: &[ProcRow], selected: usize) -> Option<Pid> {
+    processes.get(selected).map(|row| row.pid)
+}
+
+fn resolve_selected_index(
+    processes: &[ProcRow],
+    preferred_pid: Option<Pid>,
+    fallback_index: usize,
+) -> usize {
+    if processes.is_empty() {
+        return 0;
+    }
+    if let Some(pid) = preferred_pid {
+        if let Some(index) = processes.iter().position(|row| row.pid == pid) {
+            return index;
+        }
+    }
+    fallback_index.min(processes.len() - 1)
+}
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum InputMode {
@@ -83,8 +177,11 @@ impl App {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Main & event loop
+// ---------------------------------------------------------------------------
+
 fn main() -> Result<(), Box<dyn Error>> {
-    // Terminal init
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -93,7 +190,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let res = run_app(&mut terminal);
 
-    // Restore terminal
     disable_raw_mode().ok();
     execute!(terminal.backend_mut(), LeaveAlternateScreen).ok();
     terminal.show_cursor().ok();
@@ -105,7 +201,6 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), 
     let mut app = App::new();
 
     let mut sys = System::new_all();
-    // 预热，保证 CPU 使用率有参考基线
     sys.refresh_all();
     std::thread::sleep(Duration::from_millis(150));
 
@@ -121,7 +216,6 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), 
             last_tick = Instant::now();
         }
 
-        // 绘制
         table_state.select(if app.processes.is_empty() {
             None
         } else {
@@ -149,12 +243,8 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), 
                             app.selected =
                                 (app.selected + 10).min(app.processes.len().saturating_sub(1));
                         }
-                        KeyCode::Home => {
-                            app.selected = 0;
-                        }
-                        KeyCode::End => {
-                            app.selected = app.processes.len().saturating_sub(1);
-                        }
+                        KeyCode::Home => app.selected = 0,
+                        KeyCode::End => app.selected = app.processes.len().saturating_sub(1),
                         KeyCode::Char('s') => {
                             app.cycle_sort();
                             app.sort_processes();
@@ -186,13 +276,11 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), 
                         }
                         KeyCode::Char('-') => {
                             let ms = tick_rate.as_millis().saturating_sub(100) as u64;
-                            let ms = ms.clamp(100, 5000);
-                            tick_rate = Duration::from_millis(ms);
+                            tick_rate = Duration::from_millis(ms.clamp(100, 5000));
                         }
                         KeyCode::Char('+') | KeyCode::Char('=') => {
                             let ms = (tick_rate.as_millis() as u64).saturating_add(100);
-                            let ms = ms.clamp(100, 5000);
-                            tick_rate = Duration::from_millis(ms);
+                            tick_rate = Duration::from_millis(ms.clamp(100, 5000));
                         }
                         KeyCode::Enter | KeyCode::Char('d') => {
                             app.show_details = !app.show_details;
@@ -219,15 +307,12 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), 
                                 app.filter.pop();
                             }
                             KeyCode::Char(c) => {
-                                // 只接受可显示字符
                                 if !c.is_control() {
                                     app.filter.push(c);
                                 }
                             }
                             _ => {}
                         }
-
-                        // 根据当前过滤词即时过滤
                         rebuild_processes(&sys, &mut app);
                     }
                 }
@@ -236,6 +321,10 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), 
     }
 }
 
+// ---------------------------------------------------------------------------
+// Data collection
+// ---------------------------------------------------------------------------
+
 fn collect_processes(sys: &System) -> Vec<ProcRow> {
     sys.processes()
         .iter()
@@ -243,7 +332,7 @@ fn collect_processes(sys: &System) -> Vec<ProcRow> {
             pid: *pid,
             name: p.name().to_string(),
             cpu: p.cpu_usage(),
-            mem_mb: p.memory() / 1024, // KiB -> MiB
+            mem_mb: p.memory() / 1024,
         })
         .collect()
 }
@@ -260,12 +349,15 @@ fn rebuild_processes(sys: &System, app: &mut App) {
 }
 
 fn do_refresh(sys: &mut System, app: &mut App) {
-    // 刷新系统与进程信息并应用过滤与排序
     sys.refresh_cpu();
     sys.refresh_memory();
     sys.refresh_processes();
     rebuild_processes(sys, app);
 }
+
+// ---------------------------------------------------------------------------
+// UI rendering
+// ---------------------------------------------------------------------------
 
 fn ui(frame: &mut ratatui::Frame<'_>, sys: &System, app: &App, table_state: &mut TableState) {
     let chunks = if app.show_details {
@@ -292,7 +384,6 @@ fn ui(frame: &mut ratatui::Frame<'_>, sys: &System, app: &App, table_state: &mut
 }
 
 fn draw_summary(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System, app: &App) {
-    // CPU 平均
     let (cpu_avg, cores) = if sys.cpus().is_empty() {
         (0.0_f64, 0_usize)
     } else {
@@ -300,7 +391,6 @@ fn draw_summary(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System, app: &
         (sum / sys.cpus().len() as f64, sys.cpus().len())
     };
 
-    // 内存
     let total = sys.total_memory().max(1);
     let used = sys.used_memory().min(total);
     let mem_pct = (used as f64) * 100.0 / (total as f64);
@@ -319,22 +409,31 @@ fn draw_summary(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System, app: &
         InputMode::Searching => "SEARCH",
     };
     let filter_shown: String = if app.filter.is_empty() {
-        "—".into()
+        "\u{2014}".into()
     } else {
         app.filter.clone()
     };
     let paused = if app.paused { "PAUSED" } else { "RUN" };
 
     let text = Line::from(vec![
-        Span::styled(" htop-rust  ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " utop  ",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ),
         Span::raw(format!("CPU {cpu_avg:.1}% ({cores} cores)  ")),
         Span::raw(format!("Mem {used_gb:.2}/{total_gb:.2} GiB ({mem_pct:.1}%)  ")),
         Span::raw(format!("Sort: {sort} ({order})  ")),
-        Span::raw(format!("Filter: {}  ", filter_shown)),
-        Span::raw(format!("Mode: {}  ", mode)),
-        Span::raw(format!("Paused: {}  ", paused)),
-        Span::raw("Keys: q quit, ↑/↓ move, PgUp/PgDn fast, Home/End, s sort, r reverse, / search, Esc clear, p pause, F5 refresh, -/+ interval, k kill, Enter/d details"),
-        if app.status.is_empty() { Span::raw("") } else { Span::raw(format!("  Msg: {}", app.status)) },
+        Span::raw(format!("Filter: {filter_shown}  ")),
+        Span::raw(format!("Mode: {mode}  ")),
+        Span::raw(format!("Paused: {paused}  ")),
+        Span::raw(
+            "q quit | \u{2191}/\u{2193} move | s sort | r reverse | / search | p pause | k kill | d details",
+        ),
+        if app.status.is_empty() {
+            Span::raw("")
+        } else {
+            Span::raw(format!("  {}", app.status))
+        },
     ]);
 
     let para = Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("Summary"));
@@ -347,7 +446,7 @@ fn draw_process_table(
     app: &App,
     table_state: &mut TableState,
 ) {
-    let arrow = if app.desc { "↓" } else { "↑" };
+    let arrow = if app.desc { "\u{2193}" } else { "\u{2191}" };
     let pid_h = if matches!(app.sort, SortKey::Pid) {
         format!("PID {arrow}")
     } else {
@@ -382,18 +481,12 @@ fn draw_process_table(
         .header(header)
         .block(Block::default().borders(Borders::ALL).title("Processes"))
         .row_highlight_style(Style::default().bg(Color::Blue).fg(Color::White))
-        .highlight_symbol("▶ ");
+        .highlight_symbol("\u{25b6} ");
 
     frame.render_stateful_widget(table, area, table_state);
 }
 
 fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System, app: &App) {
-    if app.processes.is_empty() {
-        let para = Paragraph::new("No process selected")
-            .block(Block::default().borders(Borders::ALL).title("Details"));
-        frame.render_widget(para, area);
-        return;
-    }
     let row = match app.processes.get(app.selected) {
         Some(r) => r,
         None => {
@@ -411,7 +504,7 @@ fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System
         let mem_mb = format!("{:.1}", p.memory() as f64 / 1024.0);
         let exe = format!("{}", p.exe().display());
         let cmd = if p.cmd().is_empty() {
-            String::from("")
+            String::new()
         } else {
             p.cmd().join(" ")
         };
@@ -419,11 +512,11 @@ fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System
     } else {
         (
             row.name.clone(),
-            String::from("Unknown"),
+            "Unknown".to_string(),
             format!("{:.1}", row.cpu),
             format!("{:.1}", row.mem_mb),
-            String::from(""),
-            String::from(""),
+            String::new(),
+            String::new(),
         )
     };
 
@@ -433,12 +526,12 @@ fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System
                 format!(" PID: {}  ", row.pid),
                 Style::default().fg(Color::Yellow),
             ),
-            Span::raw(format!("Status: {}", status)),
+            Span::raw(format!("Status: {status}")),
         ]),
-        Line::from(format!(" Name: {}", name)),
-        Line::from(format!(" CPU%: {}  Mem: {} MB", cpu, mem_mb)),
-        Line::from(format!(" Exe: {}", exe)),
-        Line::from(format!(" Cmd: {}", cmd)),
+        Line::from(format!(" Name: {name}")),
+        Line::from(format!(" CPU%: {cpu}  Mem: {mem_mb} MB")),
+        Line::from(format!(" Exe: {exe}")),
+        Line::from(format!(" Cmd: {cmd}")),
     ];
     let para = Paragraph::new(lines)
         .wrap(Wrap { trim: true })
@@ -446,12 +539,15 @@ fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System
     frame.render_widget(para, area);
 }
 
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sysinfo::PidExt;
 
-    fn proc_row(pid: u32, name: &str, cpu: f32, mem_mb: u64) -> ProcRow {
+    fn row(pid: u32, name: &str, cpu: f32, mem_mb: u64) -> ProcRow {
         ProcRow {
             pid: Pid::from_u32(pid),
             name: name.to_string(),
@@ -461,7 +557,68 @@ mod tests {
     }
 
     #[test]
-    fn test_cycle_sort_rotates_keys() {
+    fn compare_cpu_uses_mem_then_pid_as_tiebreakers() {
+        let a = row(30, "zeta", 10.0, 100);
+        let b = row(10, "alpha", 10.0, 200);
+        assert_eq!(compare_proc_rows(&a, &b, SortKey::Cpu), Ordering::Less);
+    }
+
+    #[test]
+    fn compare_pid_ascending() {
+        let a = row(30, "zeta", 10.0, 100);
+        let b = row(10, "alpha", 10.0, 200);
+        assert_eq!(compare_proc_rows(&a, &b, SortKey::Pid), Ordering::Greater);
+    }
+
+    #[test]
+    fn filter_matches_name_case_insensitively() {
+        let rows = vec![row(1, "Python", 1.0, 10), row(2, "rust", 2.0, 20)];
+        let out = filter_processes(rows, "py");
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].pid.as_u32(), 1);
+    }
+
+    #[test]
+    fn filter_matches_pid_string() {
+        let rows = vec![row(1234, "Python", 1.0, 10), row(2, "rust", 2.0, 20)];
+        let out = filter_processes(rows, "123");
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].pid.as_u32(), 1234);
+    }
+
+    #[test]
+    fn filter_empty_query_returns_all() {
+        let rows = vec![row(1, "a", 1.0, 10), row(2, "b", 2.0, 20)];
+        let out = filter_processes(rows, "");
+        assert_eq!(out.len(), 2);
+    }
+
+    #[test]
+    fn resolve_selected_prefers_existing_pid() {
+        let rows = vec![
+            row(1, "a", 1.0, 10),
+            row(2, "b", 2.0, 20),
+            row(3, "c", 3.0, 30),
+        ];
+        let idx = resolve_selected_index(&rows, Some(Pid::from_u32(2)), 0);
+        assert_eq!(idx, 1);
+    }
+
+    #[test]
+    fn resolve_selected_falls_back_when_pid_missing() {
+        let rows = vec![row(1, "a", 1.0, 10), row(2, "b", 2.0, 20)];
+        let idx = resolve_selected_index(&rows, Some(Pid::from_u32(99)), 5);
+        assert_eq!(idx, 1);
+    }
+
+    #[test]
+    fn resolve_selected_empty_returns_zero() {
+        let idx = resolve_selected_index(&[], Some(Pid::from_u32(99)), 5);
+        assert_eq!(idx, 0);
+    }
+
+    #[test]
+    fn cycle_sort_rotates_keys() {
         let mut app = App::new();
         app.cycle_sort();
         assert!(matches!(app.sort, SortKey::Mem));
@@ -474,34 +631,34 @@ mod tests {
     }
 
     #[test]
-    fn test_sort_processes_cpu_with_tiebreakers() {
+    fn sort_processes_cpu_desc_with_tiebreakers() {
         let mut app = App::new();
         app.processes = vec![
-            proc_row(30, "zeta", 10.0, 100),
-            proc_row(10, "alpha", 10.0, 200),
-            proc_row(20, "beta", 5.0, 400),
+            row(30, "zeta", 10.0, 100),
+            row(10, "alpha", 10.0, 200),
+            row(20, "beta", 5.0, 400),
         ];
         app.sort = SortKey::Cpu;
         app.desc = true;
         app.sort_processes();
 
-        let pids: Vec<u32> = app.processes.iter().map(|row| row.pid.as_u32()).collect();
+        let pids: Vec<u32> = app.processes.iter().map(|r| r.pid.as_u32()).collect();
         assert_eq!(pids, vec![10, 30, 20]);
     }
 
     #[test]
-    fn test_sort_processes_pid_ascending() {
+    fn sort_processes_pid_ascending() {
         let mut app = App::new();
         app.processes = vec![
-            proc_row(30, "zeta", 10.0, 100),
-            proc_row(10, "alpha", 10.0, 200),
-            proc_row(20, "beta", 5.0, 400),
+            row(30, "zeta", 10.0, 100),
+            row(10, "alpha", 10.0, 200),
+            row(20, "beta", 5.0, 400),
         ];
         app.sort = SortKey::Pid;
         app.desc = false;
         app.sort_processes();
 
-        let pids: Vec<u32> = app.processes.iter().map(|row| row.pid.as_u32()).collect();
+        let pids: Vec<u32> = app.processes.iter().map(|r| r.pid.as_u32()).collect();
         assert_eq!(pids, vec![10, 20, 30]);
     }
 }
