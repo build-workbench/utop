@@ -1,8 +1,8 @@
 # Rust formatting configuration
 # https://rust-lang.github.io/rustfmt/
 
-# Use 2021 edition formatting rules
-edition = "2021"
+# Use 2024 edition formatting rules
+edition = "2024"
 
 # Maximum line width
 max_width = 100

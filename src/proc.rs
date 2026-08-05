@@ -132,10 +132,10 @@ pub(crate) fn resolve_selected_index(
     if processes.is_empty() {
         return 0;
     }
-    if let Some(pid) = preferred_pid {
-        if let Some(index) = processes.iter().position(|row| row.pid == pid) {
-            return index;
-        }
+    if let Some(pid) = preferred_pid
+        && let Some(index) = processes.iter().position(|row| row.pid == pid)
+    {
+        return index;
     }
     fallback_index.min(processes.len() - 1)
 }
