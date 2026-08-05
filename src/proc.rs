@@ -2,11 +2,6 @@
 
 use std::cmp::Ordering;
 
-use ratatui::{
-    style::{Color, Style},
-    text::Span,
-    widgets::{Cell, Row},
-};
 use sysinfo::Pid;
 
 #[derive(Clone, Debug)]
@@ -27,47 +22,19 @@ pub(crate) struct ProcRow {
     pub(crate) collapsed: bool,
 }
 
-impl ProcRow {
-    pub(crate) fn as_row(&self) -> Row<'static> {
-        // Per-process CPU% is relative to one core, so it can exceed 100%
-        // on multi-core machines; scale the thresholds accordingly.
-        let cpu_color = if self.cpu < 50.0 {
-            Color::Green
-        } else if self.cpu < 150.0 {
-            Color::Yellow
-        } else {
-            Color::Red
-        };
-        Row::new(vec![
-            Cell::from(self.pid.as_u32().to_string()),
-            Cell::from(self.display_name()),
-            Cell::from(Span::styled(
-                format!("{:>6.1}", self.cpu),
-                Style::default().fg(cpu_color),
-            )),
-            Cell::from(format!("{:>10}", self.mem_mb)),
-        ])
+/// Tree-indented name with a collapse marker; plain name in list mode.
+pub(crate) fn display_name(row: &ProcRow) -> String {
+    if row.depth == 0 && !row.has_children {
+        return row.name.clone();
     }
-
-    /// Tree-indented name with a collapse marker; plain name in list mode.
-    fn display_name(&self) -> String {
-        if self.depth == 0 && !self.has_children {
-            return self.name.clone();
-        }
-        let marker = if !self.has_children {
-            "   "
-        } else if self.collapsed {
-            "[+]"
-        } else {
-            "[-]"
-        };
-        format!(
-            "{}{} {}",
-            "  ".repeat(self.depth as usize),
-            marker,
-            self.name
-        )
-    }
+    let marker = if !row.has_children {
+        "   "
+    } else if row.collapsed {
+        "[+]"
+    } else {
+        "[-]"
+    };
+    format!("{}{} {}", "  ".repeat(row.depth as usize), marker, row.name)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
