@@ -4,12 +4,12 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Row, Table, TableState, Wrap},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
 };
 use sysinfo::System;
 
 use crate::app::{App, InputMode};
-use crate::proc::SortKey;
+use crate::proc::{ProcRow, SortKey, display_name};
 
 pub(crate) fn ui(
     frame: &mut ratatui::Frame<'_>,
@@ -196,6 +196,28 @@ fn draw_summary(frame: &mut ratatui::Frame<'_>, area: Rect, lines: Vec<Line<'sta
     frame.render_widget(para, area);
 }
 
+/// Renders a `ProcRow` as a ratatui `Row`. Per-process CPU% is relative to
+/// one core, so it can exceed 100% on multi-core machines; the thresholds
+/// are scaled accordingly.
+fn proc_row(row: &ProcRow) -> Row<'static> {
+    let cpu_color = if row.cpu < 50.0 {
+        Color::Green
+    } else if row.cpu < 150.0 {
+        Color::Yellow
+    } else {
+        Color::Red
+    };
+    Row::new(vec![
+        Cell::from(row.pid.as_u32().to_string()),
+        Cell::from(display_name(row)),
+        Cell::from(Span::styled(
+            format!("{:>6.1}", row.cpu),
+            Style::default().fg(cpu_color),
+        )),
+        Cell::from(format!("{:>10}", row.mem_mb)),
+    ])
+}
+
 fn draw_process_table(
     frame: &mut ratatui::Frame<'_>,
     area: Rect,
@@ -214,9 +236,9 @@ fn draw_process_table(
         "CPU%".into()
     };
     let mem_h = if matches!(app.sort, SortKey::Mem) {
-        format!("MEM(MB) {arrow}")
+        format!("MEM(MiB) {arrow}")
     } else {
-        "MEM(MB)".into()
+        "MEM(MiB)".into()
     };
     let header = Row::new(vec![pid_h, "NAME".to_string(), cpu_h, mem_h]).style(
         Style::default()
@@ -224,7 +246,7 @@ fn draw_process_table(
             .add_modifier(Modifier::BOLD),
     );
 
-    let rows = app.processes.iter().map(|p| p.as_row());
+    let rows = app.processes.iter().map(proc_row);
 
     let widths = [
         Constraint::Length(8),

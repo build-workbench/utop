@@ -8,8 +8,8 @@ use std::{
 
 use crossterm::{
     event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers,
-        MouseEventKind,
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+        KeyModifiers, MouseEventKind,
     },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -27,6 +27,9 @@ use app::{App, InputMode};
 use cli::Config;
 use collect::{do_refresh, rebuild_processes};
 use ui::ui;
+
+/// Lines moved per mouse-wheel scroll tick.
+const SCROLL_STEP: usize = 3;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let config = cli::parse();
@@ -120,11 +123,11 @@ fn run_app(
             match event::read()? {
                 Event::Mouse(mouse) => match mouse.kind {
                     MouseEventKind::ScrollUp => {
-                        app.selected = app.selected.saturating_sub(3);
+                        app.selected = app.selected.saturating_sub(SCROLL_STEP);
                     }
                     MouseEventKind::ScrollDown => {
                         app.selected =
-                            (app.selected + 3).min(app.processes.len().saturating_sub(1));
+                            (app.selected + SCROLL_STEP).min(app.processes.len().saturating_sub(1));
                     }
                     _ => {}
                 },
@@ -225,75 +228,74 @@ fn run_app(
                             }
                             _ => {}
                         },
-                        InputMode::Searching => {
-                            // Only rebuild the process list when the filter actually changed.
-                            let mut changed = true;
-                            match key.code {
-                                KeyCode::Enter => {
-                                    app.mode = InputMode::Normal;
-                                    changed = false;
-                                }
-                                KeyCode::Esc => {
-                                    app.filter.clear();
-                                    app.mode = InputMode::Normal;
-                                }
-                                KeyCode::Backspace => {
-                                    app.filter.pop();
-                                }
-                                KeyCode::Char(c) if !c.is_control() => {
-                                    app.filter.push(c);
-                                }
-                                _ => changed = false,
-                            }
-                            if changed {
-                                rebuild_processes(&sys, &mut app);
-                            }
-                        }
-                        InputMode::ConfirmKill => {
-                            let target = app.kill_target.take();
-                            let signal = match key.code {
-                                KeyCode::Char('y') => Some(Signal::Term),
-                                KeyCode::Char('K') => Some(Signal::Kill),
-                                _ => None,
-                            };
-                            match signal {
-                                Some(signal) => {
-                                    if let Some(pid) = target {
-                                        if let Some(process) = sys.process(pid) {
-                                            match process.kill_with(signal) {
-                                                Some(true) => {
-                                                    app.set_status(format!(
-                                                        "sent SIG{signal:?} to PID {pid}"
-                                                    ));
-                                                    do_refresh(&mut sys, &mut app);
-                                                }
-                                                Some(false) => {
-                                                    app.set_status(format!(
-                                                        "failed to kill PID {pid}"
-                                                    ));
-                                                }
-                                                None => {
-                                                    app.set_status(format!(
-                                                        "SIG{signal:?} unsupported on this platform"
-                                                    ));
-                                                }
-                                            }
-                                        } else {
-                                            app.set_status(format!("PID {pid} no longer exists"));
-                                        }
-                                    }
-                                    app.mode = InputMode::Normal;
-                                }
-                                None => {
-                                    app.mode = InputMode::Normal;
-                                    app.set_status("kill cancelled".to_string());
-                                }
-                            }
-                        }
+                        InputMode::Searching => handle_search_key(&mut app, &sys, key),
+                        InputMode::ConfirmKill => handle_kill_key(&mut app, &mut sys, key),
                     }
                 }
                 _ => {}
             }
+        }
+    }
+}
+
+/// Search-mode input: append/delete filter chars, rebuild only on change.
+fn handle_search_key(app: &mut App, sys: &System, key: KeyEvent) {
+    let mut changed = true;
+    match key.code {
+        KeyCode::Enter => {
+            app.mode = InputMode::Normal;
+            changed = false;
+        }
+        KeyCode::Esc => {
+            app.filter.clear();
+            app.mode = InputMode::Normal;
+        }
+        KeyCode::Backspace => {
+            app.filter.pop();
+        }
+        KeyCode::Char(c) if !c.is_control() => {
+            app.filter.push(c);
+        }
+        _ => changed = false,
+    }
+    if changed {
+        rebuild_processes(sys, app);
+    }
+}
+
+/// Kill-confirmation input: `y` = SIGTERM, `K` = SIGKILL, anything else cancels.
+fn handle_kill_key(app: &mut App, sys: &mut System, key: KeyEvent) {
+    let target = app.kill_target.take();
+    let signal = match key.code {
+        KeyCode::Char('y') => Some(Signal::Term),
+        KeyCode::Char('K') => Some(Signal::Kill),
+        _ => None,
+    };
+    match signal {
+        Some(signal) => {
+            if let Some(pid) = target
+                && let Some(process) = sys.process(pid)
+            {
+                match process.kill_with(signal) {
+                    Some(true) => {
+                        app.set_status(format!("sent SIG{signal:?} to PID {pid}"));
+                        do_refresh(sys, app);
+                    }
+                    Some(false) => {
+                        app.set_status(format!("failed to kill PID {pid}"));
+                    }
+                    None => {
+                        app.set_status(format!("SIG{signal:?} unsupported on this platform"));
+                    }
+                }
+            } else if let Some(pid) = target {
+                app.set_status(format!("PID {pid} no longer exists"));
+            }
+            app.mode = InputMode::Normal;
+        }
+        None => {
+            app.mode = InputMode::Normal;
+            app.set_status("kill cancelled".to_string());
         }
     }
 }
