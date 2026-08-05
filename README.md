@@ -1,81 +1,79 @@
 # utop
 
-A lightweight htop clone built with Rust, ratatui, and sysinfo.
+一个用 Rust 编写的轻量级终端进程监视器，基于 ratatui 和 sysinfo，灵感来自 htop。
 
-## Features
+## 功能
 
-- Per-core CPU meters with load coloring (green / yellow / red)
-- Load average and uptime in the summary panel
-- Process table sortable by CPU, memory, PID, or name (ascending/descending)
-- Incremental search filter (matches process name or PID)
-- Tree view with collapsible subtrees
-- Kill processes with confirmation and signal choice (SIGTERM / SIGKILL)
-- Process details panel (state, PPID, executable, command line)
-- Pause/resume refresh, adjustable refresh interval
-- Mouse wheel scrolling
-- Command-line options for initial sort, filter, delay, and view
+- 逐核 CPU 仪表，按负载着色（绿 / 黄 / 红）
+- 概览面板显示负载均值与运行时长
+- 进程表可按 CPU、内存、PID、名称排序，支持升序 / 降序切换
+- 增量搜索过滤（匹配进程名或 PID）
+- 树状视图，子树可折叠
+- 杀进程带二次确认与信号选择（SIGTERM / SIGKILL）
+- 进程详情面板（状态、PPID、可执行文件、命令行）
+- 暂停 / 恢复刷新，刷新间隔可调
+- 鼠标滚轮滚动
+- 命令行参数：初始排序、过滤、刷新间隔、视图模式
 
-## Build & Run
+## 构建与运行
 
 ```sh
 cargo build --release
 ./target/release/utop
 ```
 
-Or directly:
+或者直接：
 
 ```sh
 cargo run --release
 ```
 
-## Usage
+## 用法
 
 ```
-utop [OPTIONS]
+utop [选项]
 
-Options:
-  -h, --help           Print help and exit
-  -s, --sort <KEY>     Initial sort key: cpu | mem | pid | name [default: cpu]
-  -a, --asc            Start in ascending order [default: descending]
-  -d, --delay <MS>     Refresh interval in milliseconds, clamped to 100..=5000
-                       [default: 500]
-  -f, --filter <STR>   Initial process filter (matches name or PID)
-  -t, --tree           Start in tree view
-  -V, --version        Print version and exit
+选项：
+  -h, --help           打印帮助并退出
+  -s, --sort <KEY>     初始排序键：cpu | mem | pid | name [默认：cpu]
+  -a, --asc            以升序启动 [默认：降序]
+  -d, --delay <MS>     刷新间隔（毫秒），范围 100..=5000 [默认：500]
+  -f, --filter <STR>   初始进程过滤（匹配名称或 PID）
+  -t, --tree           以树状视图启动
+  -V, --version        打印版本并退出
 ```
 
-## Keys
+## 按键
 
-| Key | Action |
-|-----|--------|
-| q / Ctrl+C | Quit |
-| Up/Down, PgUp/PgDn, Home/End, mouse wheel | Navigate |
-| s | Cycle sort key (CPU/MEM/PID/NAME) |
-| r | Toggle ascending/descending |
-| / | Search processes (Enter to confirm, Esc to clear) |
-| Esc | Clear filter |
-| t | Toggle tree view |
-| Space | Collapse/expand subtree (tree view) |
-| p | Pause/resume refresh |
-| F5 | Force refresh |
-| k | Kill selected process (then y = SIGTERM, K = SIGKILL, Esc = cancel) |
-| d / Enter | Toggle process details |
-| - / + | Decrease / increase refresh interval (100 ms steps) |
+| 按键 | 动作 |
+|------|------|
+| q / Ctrl+C | 退出 |
+| 上/下、PgUp/PgDn、Home/End、鼠标滚轮 | 导航 |
+| s | 切换排序键（CPU / 内存 / PID / 名称） |
+| r | 切换升序 / 降序 |
+| / | 搜索进程（回车确认，Esc 清除） |
+| Esc | 清除过滤 |
+| t | 切换树状视图 |
+| 空格 | 折叠 / 展开子树（树状视图） |
+| p | 暂停 / 恢复刷新 |
+| F5 | 强制刷新 |
+| k | 杀死选中进程（y = SIGTERM，K = SIGKILL，Esc = 取消） |
+| d / 回车 | 切换进程详情 |
+| - / + | 减小 / 增大刷新间隔（步长 100 毫秒） |
 
-Note: filtering temporarily flattens the tree view, since a partial tree is
-harder to read than a plain list.
+注：过滤时会临时把树状视图拍平为列表，因为残缺的树比普通列表更难读。
 
-## Project layout
+## 模块结构
 
-| Module | Responsibility |
-|--------|----------------|
-| `src/main.rs` | Entry point and event loop |
-| `src/app.rs` | Application state and input modes |
-| `src/proc.rs` | Process row model, sorting and filtering helpers |
-| `src/collect.rs` | sysinfo snapshots and tree construction |
-| `src/ui.rs` | ratatui rendering |
-| `src/cli.rs` | Command-line argument parsing |
+| 模块 | 职责 |
+|------|------|
+| `src/main.rs` | 入口与事件循环 |
+| `src/app.rs` | 应用状态与输入模式 |
+| `src/proc.rs` | 进程行模型、排序与过滤辅助 |
+| `src/collect.rs` | sysinfo 快照与树构建 |
+| `src/ui.rs` | ratatui 渲染 |
+| `src/cli.rs` | 命令行参数解析 |
 
-## License
+## 许可证
 
 MIT OR Apache-2.0
