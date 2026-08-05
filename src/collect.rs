@@ -20,7 +20,8 @@ fn collect_processes(sys: &System) -> Vec<ProcRow> {
                 name,
                 name_lc,
                 cpu: p.cpu_usage(),
-                mem_mb: p.memory() / 1024,
+                // sysinfo reports bytes; the table column is MiB.
+                mem_mb: p.memory() / (1024 * 1024),
                 ppid: p.parent(),
                 depth: 0,
                 has_children: false,
@@ -83,6 +84,12 @@ pub(crate) fn rebuild_processes(sys: &System, app: &mut App) {
     let preferred_pid = selected_pid(&app.processes, app.selected);
     let fallback_index = app.selected;
     let mut processes = collect_processes(sys);
+    // Drop collapse markers of processes that no longer exist so the set
+    // cannot grow unboundedly in long-running sessions.
+    if !app.collapsed.is_empty() {
+        let alive: HashSet<Pid> = processes.iter().map(|r| r.pid).collect();
+        app.collapsed.retain(|pid| alive.contains(pid));
+    }
     // Filtering flattens the view: a partial tree is more confusing than a list.
     let tree_active = app.tree_mode && app.filter.is_empty();
     if !app.filter.is_empty() {
