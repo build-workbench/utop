@@ -65,7 +65,19 @@ fn usage_bar(pct: f32) -> String {
     )
 }
 
-/// Builds the summary block: one status line plus per-core CPU meters.
+/// `3d 4h 12m` style uptime for the summary line.
+fn format_uptime(secs: u64) -> String {
+    let (days, rem) = (secs / 86_400, secs % 86_400);
+    let (hours, mins) = (rem / 3_600, rem % 3_600 / 60);
+    if days > 0 {
+        format!("{days}d {hours}h {mins}m")
+    } else {
+        format!("{hours}h {mins}m")
+    }
+}
+
+/// Builds the summary block: a stats line, a mode line with transient
+/// status, a key-help line, and per-core CPU meters.
 fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
     let cpus = sys.cpus();
     let (cpu_avg, cores) = if cpus.is_empty() {
@@ -78,8 +90,17 @@ fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
     let total = sys.total_memory().max(1);
     let used = sys.used_memory().min(total);
     let mem_pct = (used as f64) * 100.0 / (total as f64);
-    let used_gb = (used as f64) / (1024.0 * 1024.0);
-    let total_gb = (total as f64) / (1024.0 * 1024.0);
+    let used_gb = (used as f64) / (1024.0 * 1024.0 * 1024.0);
+    let total_gb = (total as f64) / (1024.0 * 1024.0 * 1024.0);
+
+    let load = System::load_average();
+    // Color the 1-minute load relative to the core count so the same
+    // thresholds mean the same thing on any machine.
+    let load_pct = if cores > 0 {
+        load.one * 100.0 / cores as f64
+    } else {
+        0.0
+    };
 
     let sort = match app.sort {
         SortKey::Cpu => "CPU",
@@ -101,36 +122,45 @@ fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
     };
     let paused = if app.paused { "PAUSED" } else { "RUN" };
 
-    let mut lines = vec![Line::from(vec![
-        Span::styled(
-            " utop  ",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            format!("CPU {cpu_avg:.1}% ({cores} cores)  "),
-            Style::default().fg(load_color(cpu_avg)),
-        ),
-        Span::styled(
-            format!("Mem {used_gb:.2}/{total_gb:.2} GiB ({mem_pct:.1}%)  "),
-            Style::default().fg(load_color(mem_pct)),
-        ),
-        Span::raw(format!("Sort: {sort} ({order})  ")),
-        Span::raw(format!("View: {view}  ")),
-        Span::raw(format!("Filter: {filter_shown}  ")),
-        Span::raw(format!("Mode: {mode}  ")),
-        Span::raw(format!("Paused: {paused}  ")),
-        Span::raw(
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled(
+                " utop  ",
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("CPU {cpu_avg:.1}% ({cores} cores)  "),
+                Style::default().fg(load_color(cpu_avg)),
+            ),
+            Span::styled(
+                format!("Mem {used_gb:.2}/{total_gb:.2} GiB ({mem_pct:.1}%)  "),
+                Style::default().fg(load_color(mem_pct)),
+            ),
+            Span::styled(
+                format!("Load {:.2} {:.2} {:.2}  ", load.one, load.five, load.fifteen),
+                Style::default().fg(load_color(load_pct)),
+            ),
+            Span::raw(format!("up {}", format_uptime(System::uptime()))),
+        ]),
+        Line::from(vec![
+            Span::raw(format!("Sort: {sort} ({order})  ")),
+            Span::raw(format!("View: {view}  ")),
+            Span::raw(format!("Filter: {filter_shown}  ")),
+            Span::raw(format!("Mode: {mode}  ")),
+            Span::raw(format!("Paused: {paused}")),
+            if app.status.is_empty() {
+                Span::raw("")
+            } else {
+                Span::styled(
+                    format!("  {}", app.status),
+                    Style::default().add_modifier(Modifier::BOLD),
+                )
+            },
+        ]),
+        Line::from(
             "q quit | \u{2191}/\u{2193} move | s sort | r reverse | / search | t tree | p pause | k kill | d details",
         ),
-        if app.status.is_empty() {
-            Span::raw("")
-        } else {
-            Span::styled(
-                format!("  {}", app.status),
-                Style::default().add_modifier(Modifier::BOLD),
-            )
-        },
-    ])];
+    ];
 
     // Per-core meters, two cores per row, capped so huge machines stay readable.
     let shown = cpus.len().min(MAX_CORE_ROWS * 2);
@@ -193,14 +223,18 @@ fn draw_process_table(
 
     let widths = [
         Constraint::Length(8),
-        Constraint::Percentage(55),
+        Constraint::Min(20),
         Constraint::Length(8),
         Constraint::Length(12),
     ];
 
     let table = Table::new(rows, widths)
         .header(header)
-        .block(Block::default().borders(Borders::ALL).title("Processes"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!("Processes ({})", app.processes.len())),
+        )
         .row_highlight_style(Style::default().bg(Color::Blue).fg(Color::White))
         .highlight_symbol("\u{25b6} ");
 
@@ -226,7 +260,7 @@ fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System
             .unwrap_or_else(|| "\u{2014}".to_string());
         let status = format!("{:?}", p.status());
         let cpu = format!("{:.1}", p.cpu_usage());
-        let mem_mb = format!("{:.1}", p.memory() as f64 / 1024.0);
+        let mem_mb = format!("{:.1}", p.memory() as f64 / (1024.0 * 1024.0));
         let exe = p.exe().map(|e| e.display().to_string()).unwrap_or_default();
         let cmd = p
             .cmd()
