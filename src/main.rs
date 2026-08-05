@@ -31,6 +31,8 @@ use ui::ui;
 fn main() -> Result<(), Box<dyn Error>> {
     let config = cli::parse();
 
+    install_panic_hook();
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -51,6 +53,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     res
 }
 
+/// Restores the terminal if the app panics so utop never leaves the shell
+/// stuck in raw mode behind the alternate screen.
+fn install_panic_hook() {
+    let original = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        disable_raw_mode().ok();
+        execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).ok();
+        original(info);
+    }));
+}
+
 /// Re-applies ordering after the sort key or direction changes. In tree mode
 /// the order is produced by the tree build, so a full rebuild is needed.
 fn resort(sys: &System, app: &mut App) {
@@ -67,9 +80,15 @@ fn run_app(
 ) -> Result<(), Box<dyn Error>> {
     let mut app = App::new(config);
 
-    let mut sys = System::new_all();
-    sys.refresh_all();
-    std::thread::sleep(Duration::from_millis(150));
+    // Only sample what utop displays (skip disks/network/components/users),
+    // twice with a real interval in between, so the first frame already
+    // shows valid CPU usage. sysinfo discards samples closer together than
+    // MINIMUM_CPU_UPDATE_INTERVAL (200 ms on Linux), so keep at least that
+    // gap between the two startup samples.
+    let mut sys = System::new();
+    do_refresh(&mut sys, &mut app);
+    std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL + Duration::from_millis(20));
+    do_refresh(&mut sys, &mut app);
 
     let mut tick_rate = Duration::from_millis(config.delay_ms);
     let mut last_tick = Instant::now();
@@ -182,10 +201,18 @@ fn run_app(
                             KeyCode::Char('-') => {
                                 let ms = tick_rate.as_millis().saturating_sub(100) as u64;
                                 tick_rate = Duration::from_millis(ms.clamp(100, 5000));
+                                app.set_status(format!(
+                                    "refresh interval: {}ms",
+                                    tick_rate.as_millis()
+                                ));
                             }
                             KeyCode::Char('+') | KeyCode::Char('=') => {
                                 let ms = (tick_rate.as_millis() as u64).saturating_add(100);
                                 tick_rate = Duration::from_millis(ms.clamp(100, 5000));
+                                app.set_status(format!(
+                                    "refresh interval: {}ms",
+                                    tick_rate.as_millis()
+                                ));
                             }
                             KeyCode::Enter | KeyCode::Char('d') => {
                                 app.show_details = !app.show_details;
