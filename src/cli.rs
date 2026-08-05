@@ -1,0 +1,145 @@
+//! Command-line argument parsing without external dependencies.
+
+use crate::proc::SortKey;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Config {
+    pub(crate) sort: SortKey,
+    pub(crate) desc: bool,
+    pub(crate) delay_ms: u64,
+    pub(crate) filter: String,
+    pub(crate) tree: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            sort: SortKey::Cpu,
+            desc: true,
+            delay_ms: 500,
+            filter: String::new(),
+            tree: false,
+        }
+    }
+}
+
+const USAGE: &str = "\
+utop — a lightweight htop clone
+
+Usage: utop [OPTIONS]
+
+Options:
+  -h, --help           Print this help and exit
+  -s, --sort <KEY>     Initial sort key: cpu | mem | pid | name [default: cpu]
+  -a, --asc            Start in ascending order [default: descending]
+  -d, --delay <MS>     Refresh interval in milliseconds, clamped to 100..=5000
+                       [default: 500]
+  -f, --filter <STR>   Initial process filter (matches name or PID)
+  -t, --tree           Start in tree view
+";
+
+/// Parses `std::env::args`, printing help or exiting on bad input.
+pub(crate) fn parse() -> Config {
+    match parse_args(std::env::args().skip(1)) {
+        Ok(Some(config)) => config,
+        Ok(None) => {
+            print!("{USAGE}");
+            std::process::exit(0);
+        }
+        Err(err) => {
+            eprintln!("utop: {err}\n\n{USAGE}");
+            std::process::exit(2);
+        }
+    }
+}
+
+/// Pure parser: `Ok(None)` means help was requested.
+pub(crate) fn parse_args<I: IntoIterator<Item = String>>(
+    args: I,
+) -> Result<Option<Config>, String> {
+    let mut args = args.into_iter();
+    let mut config = Config::default();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "-h" | "--help" => return Ok(None),
+            "-s" | "--sort" => {
+                let value = args.next().ok_or("--sort requires a value")?;
+                config.sort = match value.as_str() {
+                    "cpu" => SortKey::Cpu,
+                    "mem" => SortKey::Mem,
+                    "pid" => SortKey::Pid,
+                    "name" => SortKey::Name,
+                    other => return Err(format!("invalid sort key '{other}'")),
+                };
+            }
+            "-a" | "--asc" => config.desc = false,
+            "-d" | "--delay" => {
+                let value = args.next().ok_or("--delay requires a value")?;
+                let ms: u64 = value
+                    .parse()
+                    .map_err(|_| format!("invalid delay '{value}'"))?;
+                config.delay_ms = ms.clamp(100, 5000);
+            }
+            "-f" | "--filter" => {
+                config.filter = args.next().ok_or("--filter requires a value")?;
+            }
+            "-t" | "--tree" => config.tree = true,
+            other => return Err(format!("unknown argument '{other}'")),
+        }
+    }
+    Ok(Some(config))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn empty_args_yield_defaults() {
+        let config = parse_args(args(&[])).unwrap().unwrap();
+        assert_eq!(config, Config::default());
+    }
+
+    #[test]
+    fn sort_and_asc_flags() {
+        let config = parse_args(args(&["--sort", "mem", "--asc"]))
+            .unwrap()
+            .unwrap();
+        assert_eq!(config.sort, SortKey::Mem);
+        assert!(!config.desc);
+    }
+
+    #[test]
+    fn delay_is_clamped_to_bounds() {
+        let config = parse_args(args(&["--delay", "99999"])).unwrap().unwrap();
+        assert_eq!(config.delay_ms, 5000);
+        let config = parse_args(args(&["-d", "5"])).unwrap().unwrap();
+        assert_eq!(config.delay_ms, 100);
+    }
+
+    #[test]
+    fn filter_and_tree_flags() {
+        let config = parse_args(args(&["-f", "rust", "-t"])).unwrap().unwrap();
+        assert_eq!(config.filter, "rust");
+        assert!(config.tree);
+    }
+
+    #[test]
+    fn unknown_argument_is_an_error() {
+        assert!(parse_args(args(&["--bogus"])).is_err());
+    }
+
+    #[test]
+    fn missing_value_is_an_error() {
+        assert!(parse_args(args(&["--sort"])).is_err());
+    }
+
+    #[test]
+    fn help_returns_none() {
+        assert!(parse_args(args(&["-h"])).unwrap().is_none());
+    }
+}

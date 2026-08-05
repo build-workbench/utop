@@ -1,6 +1,6 @@
 [package]
 name = "utop"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "A lightweight htop clone in Rust"
@@ -8,7 +8,7 @@ description = "A lightweight htop clone in Rust"
 [dependencies]
 crossterm = "0.29"
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
-sysinfo = "0.29"
+sysinfo = "0.38"
 
 [profile.release]
 opt-level = 3
