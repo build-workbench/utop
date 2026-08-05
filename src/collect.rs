@@ -6,7 +6,7 @@ use sysinfo::{Pid, ProcessesToUpdate, System};
 
 use crate::app::App;
 use crate::proc::{
-    compare_proc_rows, filter_processes, resolve_selected_index, selected_pid, ProcRow, SortKey,
+    ProcRow, SortKey, compare_proc_rows, filter_processes, resolve_selected_index, selected_pid,
 };
 
 fn collect_processes(sys: &System) -> Vec<ProcRow> {

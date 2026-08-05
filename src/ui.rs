@@ -126,7 +126,9 @@ fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
         Line::from(vec![
             Span::styled(
                 " utop  ",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 format!("CPU {cpu_avg:.1}% ({cores} cores)  "),
@@ -137,7 +139,10 @@ fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
                 Style::default().fg(load_color(mem_pct)),
             ),
             Span::styled(
-                format!("Load {:.2} {:.2} {:.2}  ", load.one, load.five, load.fifteen),
+                format!(
+                    "Load {:.2} {:.2} {:.2}  ",
+                    load.one, load.five, load.fifteen
+                ),
                 Style::default().fg(load_color(load_pct)),
             ),
             Span::raw(format!("up {}", format_uptime(System::uptime()))),

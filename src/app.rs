@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use sysinfo::Pid;
 
 use crate::cli::Config;
-use crate::proc::{compare_proc_rows, resolve_selected_index, selected_pid, ProcRow, SortKey};
+use crate::proc::{ProcRow, SortKey, compare_proc_rows, resolve_selected_index, selected_pid};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum InputMode {

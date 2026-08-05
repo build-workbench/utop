@@ -12,9 +12,9 @@ use crossterm::{
         MouseEventKind,
     },
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{backend::CrosstermBackend, widgets::TableState, Terminal};
+use ratatui::{Terminal, backend::CrosstermBackend, widgets::TableState};
 use sysinfo::{Signal, System};
 
 mod app;
@@ -175,14 +175,14 @@ fn run_app(
                             }
                             KeyCode::Char(' ') => {
                                 // Collapse/expand the selected subtree (tree view only).
-                                if app.tree_mode {
-                                    if let Some(row) = app.processes.get(app.selected) {
-                                        let pid = row.pid;
-                                        if !app.collapsed.remove(&pid) {
-                                            app.collapsed.insert(pid);
-                                        }
-                                        rebuild_processes(&sys, &mut app);
+                                if app.tree_mode
+                                    && let Some(row) = app.processes.get(app.selected)
+                                {
+                                    let pid = row.pid;
+                                    if !app.collapsed.remove(&pid) {
+                                        app.collapsed.insert(pid);
                                     }
+                                    rebuild_processes(&sys, &mut app);
                                 }
                             }
                             KeyCode::F(5) => {
@@ -274,8 +274,8 @@ fn run_app(
                                                 }
                                                 None => {
                                                     app.set_status(format!(
-                                                    "SIG{signal:?} unsupported on this platform"
-                                                ));
+                                                        "SIG{signal:?} unsupported on this platform"
+                                                    ));
                                                 }
                                             }
                                         } else {

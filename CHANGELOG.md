@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (~560 ms of wasted work removed, startup is ~2x faster).
 - The terminal is restored if utop panics, instead of leaving the
   shell stuck in raw mode behind the alternate screen.
+- Migrated to Rust edition 2024; two nested `if` blocks collapse into
+  `let`-chains (now stable).
 - Summary is split into three lines (stats / mode / key help); the old
   216-character single line was truncated on terminals under ~200
   columns.
