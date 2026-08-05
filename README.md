@@ -5,6 +5,7 @@ A lightweight htop clone built with Rust, ratatui, and sysinfo.
 ## Features
 
 - Per-core CPU meters with load coloring (green / yellow / red)
+- Load average and uptime in the summary panel
 - Process table sortable by CPU, memory, PID, or name (ascending/descending)
 - Incremental search filter (matches process name or PID)
 - Tree view with collapsible subtrees
@@ -40,6 +41,7 @@ Options:
                        [default: 500]
   -f, --filter <STR>   Initial process filter (matches name or PID)
   -t, --tree           Start in tree view
+  -V, --version        Print version and exit
 ```
 
 ## Keys
