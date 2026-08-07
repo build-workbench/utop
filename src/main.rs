@@ -20,7 +20,7 @@ use sysinfo::{Signal, System};
 mod app;
 mod cli;
 mod collect;
-mod proc;
+mod model;
 mod ui;
 
 use app::{App, InputMode};
@@ -30,6 +30,15 @@ use ui::ui;
 
 /// Lines moved per mouse-wheel scroll tick.
 const SCROLL_STEP: usize = 3;
+
+/// What a key handler wants the event loop to do after processing a key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Action {
+    /// Keep running the event loop.
+    Continue,
+    /// Exit the event loop cleanly (user pressed `q`).
+    Quit,
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let config = cli::parse();
@@ -121,16 +130,7 @@ fn run_app(
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
         if crossterm::event::poll(timeout)? {
             match event::read()? {
-                Event::Mouse(mouse) => match mouse.kind {
-                    MouseEventKind::ScrollUp => {
-                        app.selected = app.selected.saturating_sub(SCROLL_STEP);
-                    }
-                    MouseEventKind::ScrollDown => {
-                        app.selected =
-                            (app.selected + SCROLL_STEP).min(app.processes.len().saturating_sub(1));
-                    }
-                    _ => {}
-                },
+                Event::Mouse(mouse) => handle_mouse(&mut app, mouse),
                 Event::Key(key) => {
                     if key.kind == KeyEventKind::Release {
                         continue;
@@ -142,94 +142,15 @@ fn run_app(
                     {
                         return Ok(());
                     }
-                    match app.mode {
-                        InputMode::Normal => match key.code {
-                            KeyCode::Char('q') => return Ok(()),
-                            KeyCode::Up => app.selected = app.selected.saturating_sub(1),
-                            KeyCode::Down => {
-                                if app.selected + 1 < app.processes.len() {
-                                    app.selected += 1;
-                                }
-                            }
-                            KeyCode::PageUp => app.selected = app.selected.saturating_sub(10),
-                            KeyCode::PageDown => {
-                                app.selected =
-                                    (app.selected + 10).min(app.processes.len().saturating_sub(1));
-                            }
-                            KeyCode::Home => app.selected = 0,
-                            KeyCode::End => app.selected = app.processes.len().saturating_sub(1),
-                            KeyCode::Char('s') => {
-                                app.cycle_sort();
-                                resort(&sys, &mut app);
-                            }
-                            KeyCode::Char('r') => {
-                                app.desc = !app.desc;
-                                resort(&sys, &mut app);
-                            }
-                            KeyCode::Char('/') => {
-                                app.mode = InputMode::Searching;
-                            }
-                            KeyCode::Char('p') => {
-                                app.paused = !app.paused;
-                            }
-                            KeyCode::Char('t') => {
-                                app.tree_mode = !app.tree_mode;
-                                rebuild_processes(&sys, &mut app);
-                            }
-                            KeyCode::Char(' ') => {
-                                // Collapse/expand the selected subtree (tree view only).
-                                if app.tree_mode
-                                    && let Some(row) = app.processes.get(app.selected)
-                                {
-                                    let pid = row.pid;
-                                    if !app.collapsed.remove(&pid) {
-                                        app.collapsed.insert(pid);
-                                    }
-                                    rebuild_processes(&sys, &mut app);
-                                }
-                            }
-                            KeyCode::F(5) => {
-                                do_refresh(&mut sys, &mut app);
-                            }
-                            KeyCode::Char('k') => {
-                                if let Some(row) = app.processes.get(app.selected) {
-                                    app.kill_target = Some(row.pid);
-                                    app.mode = InputMode::ConfirmKill;
-                                    app.set_status(format!(
-                                        "Kill PID {} ({})? y = SIGTERM, K = SIGKILL, Esc = cancel",
-                                        row.pid, row.name
-                                    ));
-                                }
-                            }
-                            KeyCode::Char('-') => {
-                                let ms = tick_rate.as_millis().saturating_sub(100) as u64;
-                                tick_rate = Duration::from_millis(ms.clamp(100, 5000));
-                                app.set_status(format!(
-                                    "refresh interval: {}ms",
-                                    tick_rate.as_millis()
-                                ));
-                            }
-                            KeyCode::Char('+') | KeyCode::Char('=') => {
-                                let ms = (tick_rate.as_millis() as u64).saturating_add(100);
-                                tick_rate = Duration::from_millis(ms.clamp(100, 5000));
-                                app.set_status(format!(
-                                    "refresh interval: {}ms",
-                                    tick_rate.as_millis()
-                                ));
-                            }
-                            KeyCode::Enter | KeyCode::Char('d') => {
-                                app.show_details = !app.show_details;
-                            }
-                            KeyCode::Esc => {
-                                if !app.filter.is_empty() {
-                                    app.filter.clear();
-                                    rebuild_processes(&sys, &mut app);
-                                }
-                            }
-                            _ => {}
-                        },
+                    let action = match app.mode {
+                        InputMode::Normal => {
+                            handle_normal_key(&mut app, &mut sys, key, &mut tick_rate)
+                        }
                         InputMode::Searching => handle_search_key(&mut app, &sys, key),
                         InputMode::ConfirmKill => handle_kill_key(&mut app, &mut sys, key),
+                    };
+                    if action == Action::Quit {
+                        return Ok(());
                     }
                 }
                 _ => {}
@@ -238,34 +159,106 @@ fn run_app(
     }
 }
 
+/// Mouse wheel scrolling of the process list.
+fn handle_mouse(app: &mut App, mouse: crossterm::event::MouseEvent) {
+    match mouse.kind {
+        MouseEventKind::ScrollUp => app.move_up(SCROLL_STEP),
+        MouseEventKind::ScrollDown => app.move_down(SCROLL_STEP),
+        _ => {}
+    }
+}
+
+/// Normal-mode input: navigation, view toggles, sort, filter entry, kill.
+/// Returns `Action::Quit` if the user pressed `q`, `Action::Continue` otherwise.
+fn handle_normal_key(
+    app: &mut App,
+    sys: &mut System,
+    key: KeyEvent,
+    tick_rate: &mut Duration,
+) -> Action {
+    match key.code {
+        KeyCode::Char('q') => return Action::Quit,
+        KeyCode::Up => app.move_up(1),
+        KeyCode::Down => app.move_down(1),
+        KeyCode::PageUp => app.move_up(10),
+        KeyCode::PageDown => app.move_down(10),
+        KeyCode::Home => app.select_first(),
+        KeyCode::End => app.select_last(),
+        KeyCode::Char('s') => {
+            app.cycle_sort();
+            resort(sys, app);
+        }
+        KeyCode::Char('r') => {
+            app.desc = !app.desc;
+            resort(sys, app);
+        }
+        KeyCode::Char('/') => app.enter_search(),
+        KeyCode::Char('p') => app.toggle_paused(),
+        KeyCode::Char('t') => {
+            app.toggle_tree();
+            rebuild_processes(sys, app);
+        }
+        KeyCode::Char(' ') => {
+            if app.toggle_collapse_selected().is_some() {
+                rebuild_processes(sys, app);
+            }
+        }
+        KeyCode::F(5) => do_refresh(sys, app),
+        KeyCode::Char('k') => {
+            if let Some((pid, name)) = app.begin_kill_selected() {
+                app.set_status(format!(
+                    "Kill PID {} ({})? y = SIGTERM, K = SIGKILL, Esc = cancel",
+                    pid, name
+                ));
+            }
+        }
+        KeyCode::Char('-') => {
+            let ms = tick_rate.as_millis().saturating_sub(100) as u64;
+            *tick_rate = Duration::from_millis(ms.clamp(100, 5000));
+            app.set_status(format!("refresh interval: {}ms", tick_rate.as_millis()));
+        }
+        KeyCode::Char('+') | KeyCode::Char('=') => {
+            let ms = (tick_rate.as_millis() as u64).saturating_add(100);
+            *tick_rate = Duration::from_millis(ms.clamp(100, 5000));
+            app.set_status(format!("refresh interval: {}ms", tick_rate.as_millis()));
+        }
+        KeyCode::Enter | KeyCode::Char('d') => app.toggle_details(),
+        KeyCode::Esc => {
+            if !app.filter.is_empty() {
+                app.clear_filter();
+                rebuild_processes(sys, app);
+            }
+        }
+        _ => {}
+    }
+    Action::Continue
+}
+
 /// Search-mode input: append/delete filter chars, rebuild only on change.
-fn handle_search_key(app: &mut App, sys: &System, key: KeyEvent) {
+fn handle_search_key(app: &mut App, sys: &System, key: KeyEvent) -> Action {
     let mut changed = true;
     match key.code {
         KeyCode::Enter => {
-            app.mode = InputMode::Normal;
+            app.enter_normal();
             changed = false;
         }
         KeyCode::Esc => {
-            app.filter.clear();
-            app.mode = InputMode::Normal;
+            app.clear_filter();
+            app.enter_normal();
         }
-        KeyCode::Backspace => {
-            app.filter.pop();
-        }
-        KeyCode::Char(c) if !c.is_control() => {
-            app.filter.push(c);
-        }
+        KeyCode::Backspace => app.pop_filter(),
+        KeyCode::Char(c) if !c.is_control() => app.push_filter_char(c),
         _ => changed = false,
     }
     if changed {
         rebuild_processes(sys, app);
     }
+    Action::Continue
 }
 
 /// Kill-confirmation input: `y` = SIGTERM, `K` = SIGKILL, anything else cancels.
-fn handle_kill_key(app: &mut App, sys: &mut System, key: KeyEvent) {
-    let target = app.kill_target.take();
+fn handle_kill_key(app: &mut App, sys: &mut System, key: KeyEvent) -> Action {
+    let target = app.take_kill_target();
     let signal = match key.code {
         KeyCode::Char('y') => Some(Signal::Term),
         KeyCode::Char('K') => Some(Signal::Kill),
@@ -291,11 +284,12 @@ fn handle_kill_key(app: &mut App, sys: &mut System, key: KeyEvent) {
             } else if let Some(pid) = target {
                 app.set_status(format!("PID {pid} no longer exists"));
             }
-            app.mode = InputMode::Normal;
+            app.enter_normal();
         }
         None => {
-            app.mode = InputMode::Normal;
+            app.enter_normal();
             app.set_status("kill cancelled".to_string());
         }
     }
+    Action::Continue
 }

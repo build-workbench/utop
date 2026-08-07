@@ -1,6 +1,6 @@
 //! Command-line argument parsing without external dependencies.
 
-use crate::proc::SortKey;
+use crate::model::SortKey;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Config {
