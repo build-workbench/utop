@@ -69,10 +69,10 @@ utop [选项]
 |------|------|
 | `src/main.rs` | 入口与事件循环 |
 | `src/app.rs` | 应用状态与输入模式 |
-| `src/proc.rs` | 进程行模型、排序与过滤辅助 |
-| `src/collect.rs` | sysinfo 快照与树构建 |
+| `src/model.rs` | 进程行模型、排序、过滤与树构建（纯逻辑） |
+| `src/collect.rs` | sysinfo 快照（唯一碰 sysinfo 的模块） |
 | `src/ui.rs` | ratatui 渲染 |
-| `src/cli.rs` | 命令行参数解析 |
+| `src/cli.rs` | 命令行参数解析（纯解析器） |
 
 ## 许可证
 

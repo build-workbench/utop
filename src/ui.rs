@@ -9,7 +9,7 @@ use ratatui::{
 use sysinfo::System;
 
 use crate::app::{App, InputMode};
-use crate::proc::{ProcRow, SortKey, display_name};
+use crate::model::{ProcRow, SortKey, display_name};
 
 pub(crate) fn ui(
     frame: &mut ratatui::Frame<'_>,
@@ -80,13 +80,30 @@ fn format_uptime(secs: u64) -> String {
 /// status, a key-help line, and per-core CPU meters.
 fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
     let cpus = sys.cpus();
-    let (cpu_avg, cores) = if cpus.is_empty() {
+    let (cpu_avg, cores) = cpu_avg_and_cores(cpus);
+
+    let mut lines = vec![
+        stats_line(sys, cpu_avg, cores),
+        status_line(app),
+        key_help_line(),
+    ];
+    lines.extend(per_core_meters(cpus));
+    lines
+}
+
+/// Overall CPU average and core count, zero-safe (sysinfo returns an empty
+/// slice before the first refresh).
+fn cpu_avg_and_cores(cpus: &[sysinfo::Cpu]) -> (f64, usize) {
+    if cpus.is_empty() {
         (0.0_f64, 0_usize)
     } else {
         let sum: f64 = cpus.iter().map(|c| c.cpu_usage() as f64).sum();
         (sum / cpus.len() as f64, cpus.len())
-    };
+    }
+}
 
+/// First summary line: title, CPU average, memory, load average, uptime.
+fn stats_line(sys: &System, cpu_avg: f64, cores: usize) -> Line<'static> {
     let total = sys.total_memory().max(1);
     let used = sys.used_memory().min(total);
     let mem_pct = (used as f64) * 100.0 / (total as f64);
@@ -102,6 +119,35 @@ fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
         0.0
     };
 
+    Line::from(vec![
+        Span::styled(
+            " utop  ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("CPU {cpu_avg:.1}% ({cores} cores)  "),
+            Style::default().fg(load_color(cpu_avg)),
+        ),
+        Span::styled(
+            format!("Mem {used_gb:.2}/{total_gb:.2} GiB ({mem_pct:.1}%)  "),
+            Style::default().fg(load_color(mem_pct)),
+        ),
+        Span::styled(
+            format!(
+                "Load {:.2} {:.2} {:.2}  ",
+                load.one, load.five, load.fifteen
+            ),
+            Style::default().fg(load_color(load_pct)),
+        ),
+        Span::raw(format!("up {}", format_uptime(System::uptime()))),
+    ])
+}
+
+/// Second summary line: sort/view/filter/mode/paused indicators plus the
+/// transient status message (if any).
+fn status_line(app: &App) -> Line<'static> {
     let sort = match app.sort {
         SortKey::Cpu => "CPU",
         SortKey::Mem => "MEM",
@@ -122,54 +168,37 @@ fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
     };
     let paused = if app.paused { "PAUSED" } else { "RUN" };
 
-    let mut lines = vec![
-        Line::from(vec![
-            Span::styled(
-                " utop  ",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!("CPU {cpu_avg:.1}% ({cores} cores)  "),
-                Style::default().fg(load_color(cpu_avg)),
-            ),
-            Span::styled(
-                format!("Mem {used_gb:.2}/{total_gb:.2} GiB ({mem_pct:.1}%)  "),
-                Style::default().fg(load_color(mem_pct)),
-            ),
-            Span::styled(
-                format!(
-                    "Load {:.2} {:.2} {:.2}  ",
-                    load.one, load.five, load.fifteen
-                ),
-                Style::default().fg(load_color(load_pct)),
-            ),
-            Span::raw(format!("up {}", format_uptime(System::uptime()))),
-        ]),
-        Line::from(vec![
-            Span::raw(format!("Sort: {sort} ({order})  ")),
-            Span::raw(format!("View: {view}  ")),
-            Span::raw(format!("Filter: {filter_shown}  ")),
-            Span::raw(format!("Mode: {mode}  ")),
-            Span::raw(format!("Paused: {paused}")),
-            if app.status.is_empty() {
-                Span::raw("")
-            } else {
-                Span::styled(
-                    format!("  {}", app.status),
-                    Style::default().add_modifier(Modifier::BOLD),
-                )
-            },
-        ]),
-        Line::from(
-            "q quit | \u{2191}/\u{2193} move | s sort | r reverse | / search | t tree | p pause | k kill | d details",
-        ),
+    let mut spans = vec![
+        Span::raw(format!("Sort: {sort} ({order})  ")),
+        Span::raw(format!("View: {view}  ")),
+        Span::raw(format!("Filter: {filter_shown}  ")),
+        Span::raw(format!("Mode: {mode}  ")),
+        Span::raw(format!("Paused: {paused}")),
     ];
+    if !app.status.is_empty() {
+        spans.push(Span::styled(
+            format!("  {}", app.status),
+            Style::default().add_modifier(Modifier::BOLD),
+        ));
+    }
+    Line::from(spans)
+}
 
-    // Per-core meters, two cores per row, capped so huge machines stay readable.
+/// Third summary line: a compact reminder of the key bindings.
+fn key_help_line() -> Line<'static> {
+    Line::from(
+        "q quit | \u{2191}/\u{2193} move | s sort | r reverse | / search | t tree | p pause | k kill | d details",
+    )
+}
+
+/// Per-core CPU meters, two cores per row, capped so huge machines stay
+/// readable. Returns zero or more lines plus a trailing "N cores not shown"
+/// line if any were elided.
+fn per_core_meters(cpus: &[sysinfo::Cpu]) -> Vec<Line<'static>> {
     let shown = cpus.len().min(MAX_CORE_ROWS * 2);
     let indexed: Vec<(usize, _)> = cpus.iter().enumerate().take(shown).collect();
+
+    let mut lines = Vec::new();
     for pair in indexed.chunks(2) {
         let mut spans = Vec::new();
         for (index, cpu) in pair {
@@ -187,7 +216,6 @@ fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
             cpus.len() - shown
         )));
     }
-
     lines
 }
 
