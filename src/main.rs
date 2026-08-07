@@ -223,11 +223,9 @@ fn handle_normal_key(
             app.set_status(format!("refresh interval: {}ms", tick_rate.as_millis()));
         }
         KeyCode::Enter | KeyCode::Char('d') => app.toggle_details(),
-        KeyCode::Esc => {
-            if !app.filter.is_empty() {
-                app.clear_filter();
-                rebuild_processes(sys, app);
-            }
+        KeyCode::Esc if !app.filter.is_empty() => {
+            app.clear_filter();
+            rebuild_processes(sys, app);
         }
         _ => {}
     }
