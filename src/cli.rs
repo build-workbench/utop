@@ -3,22 +3,27 @@
 use crate::model::SortKey;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Config {
-    pub(crate) sort: SortKey,
-    pub(crate) desc: bool,
-    pub(crate) delay_ms: u64,
-    pub(crate) filter: String,
-    pub(crate) tree: bool,
+pub struct Config {
+    pub sort: SortKey,
+    pub desc: bool,
+    pub delay_ms: u64,
+    pub filter: String,
+    pub tree: bool,
 }
 
 /// Outcome of argument parsing: run with a config, print help, or print
 /// version. Kept as a value so the parser stays pure (no exit/print inside).
 #[derive(Debug)]
-pub(crate) enum Action {
+pub enum Action {
     Run(Config),
     Help,
     Version,
 }
+
+/// Bounds for the refresh interval in milliseconds. Shared by the CLI clamp
+/// and the in-app `-` / `+` adjustment so they can never drift apart.
+pub(crate) const MIN_DELAY_MS: u64 = 100;
+pub(crate) const MAX_DELAY_MS: u64 = 5000;
 
 impl Default for Config {
     fn default() -> Self {
@@ -49,7 +54,7 @@ Options:
 ";
 
 /// Parses `std::env::args`, printing help/version or exiting on bad input.
-pub(crate) fn parse() -> Config {
+pub fn parse() -> Config {
     match parse_args(std::env::args().skip(1)) {
         Ok(Action::Run(config)) => config,
         Ok(Action::Help) => {
@@ -68,7 +73,7 @@ pub(crate) fn parse() -> Config {
 }
 
 /// Pure parser; never prints or exits.
-pub(crate) fn parse_args<I: IntoIterator<Item = String>>(args: I) -> Result<Action, String> {
+pub fn parse_args<I: IntoIterator<Item = String>>(args: I) -> Result<Action, String> {
     let mut args = args.into_iter();
     let mut config = Config::default();
     while let Some(arg) = args.next() {
@@ -91,7 +96,7 @@ pub(crate) fn parse_args<I: IntoIterator<Item = String>>(args: I) -> Result<Acti
                 let ms: u64 = value
                     .parse()
                     .map_err(|_| format!("invalid delay '{value}'"))?;
-                config.delay_ms = ms.clamp(100, 5000);
+                config.delay_ms = ms.clamp(MIN_DELAY_MS, MAX_DELAY_MS);
             }
             "-f" | "--filter" => {
                 config.filter = args.next().ok_or("--filter requires a value")?;

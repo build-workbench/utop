@@ -8,28 +8,91 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
-use sysinfo::Pid;
+/// Process identifier. A plain newtype so the pure modules never need to
+/// import anything from sysinfo; `collect` converts to and from sysinfo's
+/// own PID type at the boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Pid(u32);
+
+impl Pid {
+    pub fn from_u32(pid: u32) -> Self {
+        Self(pid)
+    }
+
+    pub fn as_u32(self) -> u32 {
+        self.0
+    }
+}
+
+/// Signal to deliver when killing a process, as chosen in the kill
+/// confirmation. Maps to `sysinfo::Signal` inside `collect`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SignalKind {
+    Term,
+    Kill,
+}
+
+impl SignalKind {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            SignalKind::Term => "SIGTERM",
+            SignalKind::Kill => "SIGKILL",
+        }
+    }
+}
+
+/// System-wide stats snapshot for the summary panel, taken by `collect` on
+/// every refresh. Plain data so the UI never needs the live system.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct SysStats {
+    pub(crate) cpu_avg: f64,
+    /// Per-core usage percentages, in sysinfo's core order.
+    pub(crate) core_usages: Vec<f32>,
+    pub(crate) mem_used_gib: f64,
+    pub(crate) mem_total_gib: f64,
+    pub(crate) mem_pct: f64,
+    pub(crate) load_one: f64,
+    pub(crate) load_five: f64,
+    pub(crate) load_fifteen: f64,
+    /// 1-minute load relative to the core count, so the color thresholds
+    /// mean the same thing on any machine.
+    pub(crate) load_pct: f64,
+    pub(crate) uptime_secs: u64,
+}
+
+/// Details of the currently selected process, snapshotted by `collect`.
+/// `None` once the process no longer exists.
+#[derive(Clone, Debug)]
+pub(crate) struct ProcDetails {
+    pub(crate) name: String,
+    pub(crate) ppid: Option<Pid>,
+    pub(crate) status: String,
+    pub(crate) cpu: f32,
+    pub(crate) mem_mib: f64,
+    pub(crate) exe: String,
+    pub(crate) cmd: String,
+}
 
 #[derive(Clone, Debug)]
-pub(crate) struct ProcRow {
-    pub(crate) pid: Pid,
-    pub(crate) name: String,
+pub struct ProcRow {
+    pub pid: Pid,
+    pub name: String,
     /// Precomputed lowercase name so sorting/filtering never re-allocates.
-    pub(crate) name_lc: String,
-    pub(crate) cpu: f32,
-    pub(crate) mem_mb: u64,
+    pub name_lc: String,
+    pub cpu: f32,
+    pub mem_mb: u64,
     /// Parent PID, used to build the tree view.
-    pub(crate) ppid: Option<Pid>,
+    pub ppid: Option<Pid>,
     /// Indentation level in tree view (0 in flat list mode).
-    pub(crate) depth: u16,
+    pub depth: u16,
     /// Whether this row has children in tree view.
-    pub(crate) has_children: bool,
+    pub has_children: bool,
     /// Whether this row's children are hidden in tree view.
-    pub(crate) collapsed: bool,
+    pub collapsed: bool,
 }
 
 /// Tree-indented name with a collapse marker; plain name in list mode.
-pub(crate) fn display_name(row: &ProcRow) -> String {
+pub fn display_name(row: &ProcRow) -> String {
     if row.depth == 0 && !row.has_children {
         return row.name.clone();
     }
@@ -44,14 +107,14 @@ pub(crate) fn display_name(row: &ProcRow) -> String {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum SortKey {
+pub enum SortKey {
     Cpu,
     Mem,
     Pid,
     Name,
 }
 
-pub(crate) fn compare_proc_rows(a: &ProcRow, b: &ProcRow, sort_key: SortKey) -> Ordering {
+pub fn compare_proc_rows(a: &ProcRow, b: &ProcRow, sort_key: SortKey) -> Ordering {
     match sort_key {
         SortKey::Cpu => a
             .cpu
@@ -82,7 +145,16 @@ pub(crate) fn compare_proc_rows(a: &ProcRow, b: &ProcRow, sort_key: SortKey) -> 
     }
 }
 
-pub(crate) fn filter_processes(processes: Vec<ProcRow>, query: &str) -> Vec<ProcRow> {
+/// Shared sort-then-reverse policy, used for both the flat list and the
+/// tree's sibling groups so the two orderings can never diverge.
+pub(crate) fn sort_rows(list: &mut [ProcRow], key: SortKey, desc: bool) {
+    list.sort_by(|a, b| compare_proc_rows(a, b, key));
+    if desc {
+        list.reverse();
+    }
+}
+
+pub fn filter_processes(processes: Vec<ProcRow>, query: &str) -> Vec<ProcRow> {
     if query.is_empty() {
         return processes;
     }
@@ -93,11 +165,11 @@ pub(crate) fn filter_processes(processes: Vec<ProcRow>, query: &str) -> Vec<Proc
         .collect()
 }
 
-pub(crate) fn selected_pid(processes: &[ProcRow], selected: usize) -> Option<Pid> {
+pub fn selected_pid(processes: &[ProcRow], selected: usize) -> Option<Pid> {
     processes.get(selected).map(|row| row.pid)
 }
 
-pub(crate) fn resolve_selected_index(
+pub fn resolve_selected_index(
     processes: &[ProcRow],
     preferred_pid: Option<Pid>,
     fallback_index: usize,
@@ -119,7 +191,7 @@ pub(crate) fn resolve_selected_index(
 /// Pure: takes a flat list of rows (each carrying its `ppid`) and the set of
 /// collapsed PIDs, returns a new list ordered for tree display with `depth`
 /// and `has_children`/`collapsed` filled in. No sysinfo involved.
-pub(crate) fn build_tree(
+pub fn build_tree(
     rows: Vec<ProcRow>,
     sort_key: SortKey,
     desc: bool,
@@ -135,13 +207,7 @@ pub(crate) fn build_tree(
         }
     }
 
-    let cmp = |a: &ProcRow, b: &ProcRow| compare_proc_rows(a, b, sort_key);
-    let order = |list: &mut Vec<ProcRow>| {
-        list.sort_by(cmp);
-        if desc {
-            list.reverse();
-        }
-    };
+    let order = |list: &mut Vec<ProcRow>| sort_rows(list, sort_key, desc);
     order(&mut roots);
     for list in children.values_mut() {
         order(list);
@@ -167,10 +233,11 @@ pub(crate) fn build_tree(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod testutil {
     use super::*;
 
-    fn row(pid: u32, name: &str, cpu: f32, mem_mb: u64) -> ProcRow {
+    /// Shared `ProcRow` fixture builder for this module's and `app`'s tests.
+    pub(crate) fn row(pid: u32, name: &str, cpu: f32, mem_mb: u64) -> ProcRow {
         ProcRow {
             pid: Pid::from_u32(pid),
             name: name.to_string(),
@@ -183,6 +250,12 @@ mod tests {
             collapsed: false,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use testutil::row;
 
     fn tree_row(pid: u32, ppid: Option<u32>, name: &str, cpu: f32) -> ProcRow {
         ProcRow {
@@ -207,6 +280,31 @@ mod tests {
         let a = row(30, "zeta", 10.0, 100);
         let b = row(10, "alpha", 10.0, 200);
         assert_eq!(compare_proc_rows(&a, &b, SortKey::Cpu), Ordering::Less);
+    }
+
+    #[test]
+    fn compare_mem_orders_by_memory_then_cpu() {
+        let a = row(30, "zeta", 10.0, 100);
+        let b = row(10, "alpha", 5.0, 200);
+        // Primary key: memory (a has less, so a comes first ascending).
+        assert_eq!(compare_proc_rows(&a, &b, SortKey::Mem), Ordering::Less);
+        // Tie on memory: lower CPU first.
+        let b = row(10, "alpha", 15.0, 100);
+        assert_eq!(compare_proc_rows(&a, &b, SortKey::Mem), Ordering::Less);
+        // Tie on memory and CPU: lower PID first.
+        let b = row(10, "alpha", 10.0, 100);
+        assert_eq!(compare_proc_rows(&a, &b, SortKey::Mem), Ordering::Greater);
+    }
+
+    #[test]
+    fn compare_name_orders_case_insensitively_then_cpu() {
+        let a = row(1, "alpha", 1.0, 10);
+        let b = row(2, "BETA", 2.0, 10);
+        // "alpha" < "beta" after lowercasing.
+        assert_eq!(compare_proc_rows(&a, &b, SortKey::Name), Ordering::Less);
+        // Case-insensitive tie: lower CPU first.
+        let b = row(2, "ALPHA", 2.0, 10);
+        assert_eq!(compare_proc_rows(&a, &b, SortKey::Name), Ordering::Less);
     }
 
     #[test]

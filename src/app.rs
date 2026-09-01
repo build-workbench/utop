@@ -1,17 +1,18 @@
-//! Application state and input modes. Pure logic only — no I/O, no sysinfo calls.
+//! Application state and input modes. Pure logic only — no I/O, no sysinfo.
 //!
 //! `App` is the single authority on every piece of mutable state in utop:
 //! which process is selected, what the filter is, which mode we're in,
-//! whether the tree is collapsed, etc. The event loop in `main` reads a
-//! key, calls an `App` method to mutate state, then decides whether a
-//! sysinfo rebuild is needed. State never changes behind `App`'s back.
+//! whether the tree is collapsed, etc. Input handlers only call `App`
+//! methods and record what collection work they need via `Followup`; the
+//! event loop performs that work and stores fresh snapshots back into `App`.
+//! State never changes behind `App`'s back.
 
 use std::collections::HashSet;
 
-use sysinfo::Pid;
-
-use crate::cli::Config;
-use crate::model::{ProcRow, SortKey, compare_proc_rows, resolve_selected_index, selected_pid};
+use crate::cli::{Config, MAX_DELAY_MS, MIN_DELAY_MS};
+use crate::model::{
+    Pid, ProcDetails, ProcRow, SignalKind, SortKey, SysStats, resolve_selected_index, sort_rows,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum InputMode {
@@ -22,6 +23,20 @@ pub(crate) enum InputMode {
 
 /// Number of ticks a status message stays visible before being cleared.
 pub(crate) const STATUS_TTL_TICKS: u8 = 6;
+
+/// Collection work the event loop should perform on the app's behalf after
+/// handling input. Keeps input handlers free of any `System` handle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Followup {
+    /// Nothing to do.
+    None,
+    /// Re-order / re-shape the rows already in `App` (no new samples).
+    Reshape,
+    /// Re-collect processes from the last samples and rebuild the view.
+    Rebuild,
+    /// Take fresh samples and rebuild everything.
+    Refresh,
+}
 
 pub(crate) struct App {
     pub(crate) sort: SortKey,
@@ -34,10 +49,21 @@ pub(crate) struct App {
     pub(crate) status: String,
     pub(crate) status_ttl: u8,
     pub(crate) show_details: bool,
+    /// Kill target armed by `k`, consumed by the confirmation step.
     pub(crate) kill_target: Option<Pid>,
+    /// (pid, signal) confirmed in the kill prompt; executed by the event loop.
+    pub(crate) kill_request: Option<(Pid, SignalKind)>,
     pub(crate) tree_mode: bool,
     /// PIDs whose children are hidden in tree view.
     pub(crate) collapsed: HashSet<Pid>,
+    /// Refresh interval in milliseconds, clamped to `cli::MIN/MAX_DELAY_MS`.
+    pub(crate) tick_rate_ms: u64,
+    /// Latest system-wide stats snapshot (written by `collect`).
+    pub(crate) stats: SysStats,
+    /// Live details of the selected process (written by `collect`).
+    pub(crate) details: Option<ProcDetails>,
+    /// Collection work requested by the last input handler.
+    pub(crate) followup: Followup,
 }
 
 impl App {
@@ -54,14 +80,44 @@ impl App {
             status_ttl: 0,
             show_details: false,
             kill_target: None,
+            kill_request: None,
             tree_mode: config.tree,
             collapsed: HashSet::new(),
+            tick_rate_ms: config.delay_ms,
+            stats: SysStats::default(),
+            details: None,
+            followup: Followup::None,
         }
     }
 
     pub(crate) fn set_status(&mut self, msg: String) {
         self.status = msg;
         self.status_ttl = STATUS_TTL_TICKS;
+    }
+
+    /// Decays the status message TTL by one tick, clearing the message at
+    /// zero. Called once per refresh tick by the event loop.
+    pub(crate) fn tick_status(&mut self) {
+        if self.status_ttl > 0 {
+            self.status_ttl -= 1;
+            if self.status_ttl == 0 {
+                self.status.clear();
+            }
+        }
+    }
+
+    /// Adjusts the refresh interval by `delta_ms`, clamped to the shared
+    /// CLI bounds so both entry paths enforce the same range.
+    pub(crate) fn adjust_tick_rate(&mut self, delta_ms: i64) {
+        let next = self.tick_rate_ms as i64 + delta_ms;
+        self.tick_rate_ms = next.clamp(MIN_DELAY_MS as i64, MAX_DELAY_MS as i64) as u64;
+    }
+
+    /// Tree view is only meaningful when no filter is applied: a partial
+    /// tree is more confusing than a flat list. Single source of truth for
+    /// that rule.
+    pub(crate) fn tree_active(&self) -> bool {
+        self.tree_mode && self.filter.is_empty()
     }
 
     pub(crate) fn cycle_sort(&mut self) {
@@ -73,21 +129,12 @@ impl App {
         };
     }
 
-    pub(crate) fn sort_processes(&mut self) {
-        let preferred_pid = selected_pid(&self.processes, self.selected);
-        self.sort_processes_with_selection(preferred_pid, self.selected);
-    }
-
     pub(crate) fn sort_processes_with_selection(
         &mut self,
         preferred_pid: Option<Pid>,
         fallback_index: usize,
     ) {
-        self.processes
-            .sort_by(|a, b| compare_proc_rows(a, b, self.sort));
-        if self.desc {
-            self.processes.reverse();
-        }
+        sort_rows(&mut self.processes, self.sort, self.desc);
         self.selected = resolve_selected_index(&self.processes, preferred_pid, fallback_index);
     }
 
@@ -103,6 +150,10 @@ impl App {
 
     pub(crate) fn toggle_tree(&mut self) {
         self.tree_mode = !self.tree_mode;
+    }
+
+    pub(crate) fn toggle_desc(&mut self) {
+        self.desc = !self.desc;
     }
 
     /// Toggles the collapsed state of the selected row's subtree (tree view
@@ -173,35 +224,44 @@ impl App {
         Some((pid, name))
     }
 
-    pub(crate) fn take_kill_target(&mut self) -> Option<Pid> {
-        self.kill_target.take()
+    /// Confirms the armed kill with the chosen signal. Returns false when
+    /// no kill was armed.
+    pub(crate) fn arm_kill(&mut self, kind: SignalKind) -> bool {
+        match self.kill_target.take() {
+            Some(pid) => {
+                self.kill_request = Some((pid, kind));
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub(crate) fn take_kill_request(&mut self) -> Option<(Pid, SignalKind)> {
+        self.kill_request.take()
     }
 
     pub(crate) fn enter_normal(&mut self) {
         self.mode = InputMode::Normal;
+    }
+
+    // -- followup (collection work requested by input handlers) ------------
+
+    pub(crate) fn request(&mut self, followup: Followup) {
+        self.followup = followup;
+    }
+
+    pub(crate) fn take_followup(&mut self) -> Followup {
+        std::mem::replace(&mut self.followup, Followup::None)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::testutil::row;
 
     fn app() -> App {
         App::new(&Config::default())
-    }
-
-    fn row(pid: u32, name: &str, cpu: f32, mem_mb: u64) -> ProcRow {
-        ProcRow {
-            pid: Pid::from_u32(pid),
-            name: name.to_string(),
-            name_lc: name.to_lowercase(),
-            cpu,
-            mem_mb,
-            ppid: None,
-            depth: 0,
-            has_children: false,
-            collapsed: false,
-        }
     }
 
     #[test]
@@ -227,7 +287,7 @@ mod tests {
         ];
         app.sort = SortKey::Cpu;
         app.desc = true;
-        app.sort_processes();
+        app.sort_processes_with_selection(None, 0);
 
         let pids: Vec<u32> = app.processes.iter().map(|r| r.pid.as_u32()).collect();
         assert_eq!(pids, vec![10, 30, 20]);
@@ -243,7 +303,7 @@ mod tests {
         ];
         app.sort = SortKey::Pid;
         app.desc = false;
-        app.sort_processes();
+        app.sort_processes_with_selection(None, 0);
 
         let pids: Vec<u32> = app.processes.iter().map(|r| r.pid.as_u32()).collect();
         assert_eq!(pids, vec![10, 20, 30]);
@@ -327,10 +387,107 @@ mod tests {
     }
 
     #[test]
-    fn take_kill_target_drains_the_target() {
+    fn arm_kill_moves_target_to_request() {
         let mut app = app();
         app.kill_target = Some(Pid::from_u32(7));
-        assert_eq!(app.take_kill_target(), Some(Pid::from_u32(7)));
-        assert_eq!(app.take_kill_target(), None);
+        assert!(app.arm_kill(SignalKind::Term));
+        assert_eq!(app.kill_target, None);
+        assert_eq!(
+            app.take_kill_request(),
+            Some((Pid::from_u32(7), SignalKind::Term))
+        );
+        // Drained.
+        assert_eq!(app.take_kill_request(), None);
+    }
+
+    #[test]
+    fn arm_kill_without_target_is_false() {
+        let mut app = app();
+        assert!(!app.arm_kill(SignalKind::Kill));
+        assert_eq!(app.take_kill_request(), None);
+    }
+
+    #[test]
+    fn filter_editing_updates_state() {
+        let mut app = app();
+        app.enter_search();
+        assert!(matches!(app.mode, InputMode::Searching));
+        app.push_filter_char('r');
+        app.push_filter_char('U');
+        app.push_filter_char('S');
+        app.push_filter_char('T');
+        assert_eq!(app.filter, "rUST");
+        app.pop_filter();
+        assert_eq!(app.filter, "rUS");
+        app.clear_filter();
+        assert_eq!(app.filter, "");
+    }
+
+    #[test]
+    fn tree_active_requires_tree_mode_and_empty_filter() {
+        let mut app = app();
+        // Default: list mode, no filter -> inactive.
+        assert!(!app.tree_active());
+        app.tree_mode = true;
+        assert!(app.tree_active());
+        // A filter flattens the tree.
+        app.push_filter_char('x');
+        assert!(!app.tree_active());
+        app.clear_filter();
+        assert!(app.tree_active());
+    }
+
+    #[test]
+    fn tick_status_clears_message_after_ttl() {
+        let mut app = app();
+        app.set_status("hello".into());
+        assert_eq!(app.status_ttl, STATUS_TTL_TICKS);
+        // Decays but stays visible.
+        for _ in 0..STATUS_TTL_TICKS - 1 {
+            app.tick_status();
+            assert!(!app.status.is_empty());
+        }
+        // Last tick clears the message.
+        app.tick_status();
+        assert!(app.status.is_empty());
+        assert_eq!(app.status_ttl, 0);
+        // Idempotent once cleared.
+        app.tick_status();
+        assert!(app.status.is_empty());
+    }
+
+    #[test]
+    fn toggle_desc_flips_direction() {
+        let mut app = app();
+        let before = app.desc;
+        app.toggle_desc();
+        assert_eq!(app.desc, !before);
+        app.toggle_desc();
+        assert_eq!(app.desc, before);
+    }
+
+    #[test]
+    fn adjust_tick_rate_clamps_to_shared_bounds() {
+        let mut app = app();
+        app.tick_rate_ms = 500;
+        app.adjust_tick_rate(-100);
+        assert_eq!(app.tick_rate_ms, 400);
+        app.adjust_tick_rate(100);
+        assert_eq!(app.tick_rate_ms, 500);
+        // Clamps at the shared bounds, not below/above.
+        app.adjust_tick_rate(-10_000);
+        assert_eq!(app.tick_rate_ms, MIN_DELAY_MS);
+        app.adjust_tick_rate(10_000);
+        assert_eq!(app.tick_rate_ms, MAX_DELAY_MS);
+    }
+
+    #[test]
+    fn followup_requests_are_taken_once() {
+        let mut app = app();
+        assert_eq!(app.take_followup(), Followup::None);
+        app.request(Followup::Rebuild);
+        assert_eq!(app.take_followup(), Followup::Rebuild);
+        // Taken: back to None.
+        assert_eq!(app.take_followup(), Followup::None);
     }
 }
