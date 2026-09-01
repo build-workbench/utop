@@ -1,4 +1,8 @@
 //! Terminal UI rendering with ratatui.
+//!
+//! Pure rendering: reads only the snapshots stored on `App` (process rows,
+//! `SysStats`, `ProcDetails`) and never the live system. If you can build
+//! an `App`, you can render and test every function in this module.
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -6,18 +10,12 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
 };
-use sysinfo::System;
 
 use crate::app::{App, InputMode};
-use crate::model::{ProcRow, SortKey, display_name};
+use crate::model::{ProcRow, SortKey, SysStats, display_name};
 
-pub(crate) fn ui(
-    frame: &mut ratatui::Frame<'_>,
-    sys: &System,
-    app: &App,
-    table_state: &mut TableState,
-) {
-    let summary = summary_content(sys, app);
+pub(crate) fn ui(frame: &mut ratatui::Frame<'_>, app: &App, table_state: &mut TableState) {
+    let summary = summary_content(app);
     // +2 for the block borders.
     let summary_height = summary.len() as u16 + 2;
 
@@ -33,7 +31,7 @@ pub(crate) fn ui(
     draw_summary(frame, chunks[0], summary);
     draw_process_table(frame, chunks[1], app, table_state);
     if app.show_details {
-        draw_process_details(frame, chunks[2], sys, app);
+        draw_process_details(frame, chunks[2], app);
     }
 }
 
@@ -78,47 +76,14 @@ fn format_uptime(secs: u64) -> String {
 
 /// Builds the summary block: a stats line, a mode line with transient
 /// status, a key-help line, and per-core CPU meters.
-fn summary_content(sys: &System, app: &App) -> Vec<Line<'static>> {
-    let cpus = sys.cpus();
-    let (cpu_avg, cores) = cpu_avg_and_cores(cpus);
-
-    let mut lines = vec![
-        stats_line(sys, cpu_avg, cores),
-        status_line(app),
-        key_help_line(),
-    ];
-    lines.extend(per_core_meters(cpus));
+fn summary_content(app: &App) -> Vec<Line<'static>> {
+    let mut lines = vec![stats_line(&app.stats), status_line(app), key_help_line()];
+    lines.extend(per_core_meters(&app.stats.core_usages));
     lines
 }
 
-/// Overall CPU average and core count, zero-safe (sysinfo returns an empty
-/// slice before the first refresh).
-fn cpu_avg_and_cores(cpus: &[sysinfo::Cpu]) -> (f64, usize) {
-    if cpus.is_empty() {
-        (0.0_f64, 0_usize)
-    } else {
-        let sum: f64 = cpus.iter().map(|c| c.cpu_usage() as f64).sum();
-        (sum / cpus.len() as f64, cpus.len())
-    }
-}
-
 /// First summary line: title, CPU average, memory, load average, uptime.
-fn stats_line(sys: &System, cpu_avg: f64, cores: usize) -> Line<'static> {
-    let total = sys.total_memory().max(1);
-    let used = sys.used_memory().min(total);
-    let mem_pct = (used as f64) * 100.0 / (total as f64);
-    let used_gb = (used as f64) / (1024.0 * 1024.0 * 1024.0);
-    let total_gb = (total as f64) / (1024.0 * 1024.0 * 1024.0);
-
-    let load = System::load_average();
-    // Color the 1-minute load relative to the core count so the same
-    // thresholds mean the same thing on any machine.
-    let load_pct = if cores > 0 {
-        load.one * 100.0 / cores as f64
-    } else {
-        0.0
-    };
-
+fn stats_line(stats: &SysStats) -> Line<'static> {
     Line::from(vec![
         Span::styled(
             " utop  ",
@@ -127,21 +92,28 @@ fn stats_line(sys: &System, cpu_avg: f64, cores: usize) -> Line<'static> {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!("CPU {cpu_avg:.1}% ({cores} cores)  "),
-            Style::default().fg(load_color(cpu_avg)),
+            format!(
+                "CPU {:.1}% ({} cores)  ",
+                stats.cpu_avg,
+                stats.core_usages.len()
+            ),
+            Style::default().fg(load_color(stats.cpu_avg)),
         ),
         Span::styled(
-            format!("Mem {used_gb:.2}/{total_gb:.2} GiB ({mem_pct:.1}%)  "),
-            Style::default().fg(load_color(mem_pct)),
+            format!(
+                "Mem {:.2}/{:.2} GiB ({:.1}%)  ",
+                stats.mem_used_gib, stats.mem_total_gib, stats.mem_pct
+            ),
+            Style::default().fg(load_color(stats.mem_pct)),
         ),
         Span::styled(
             format!(
                 "Load {:.2} {:.2} {:.2}  ",
-                load.one, load.five, load.fifteen
+                stats.load_one, stats.load_five, stats.load_fifteen
             ),
-            Style::default().fg(load_color(load_pct)),
+            Style::default().fg(load_color(stats.load_pct)),
         ),
-        Span::raw(format!("up {}", format_uptime(System::uptime()))),
+        Span::raw(format!("up {}", format_uptime(stats.uptime_secs))),
     ])
 }
 
@@ -194,26 +166,30 @@ fn key_help_line() -> Line<'static> {
 /// Per-core CPU meters, two cores per row, capped so huge machines stay
 /// readable. Returns zero or more lines plus a trailing "N cores not shown"
 /// line if any were elided.
-fn per_core_meters(cpus: &[sysinfo::Cpu]) -> Vec<Line<'static>> {
-    let shown = cpus.len().min(MAX_CORE_ROWS * 2);
-    let indexed: Vec<(usize, _)> = cpus.iter().enumerate().take(shown).collect();
+fn per_core_meters(core_usages: &[f32]) -> Vec<Line<'static>> {
+    let shown = core_usages.len().min(MAX_CORE_ROWS * 2);
+    let indexed: Vec<(usize, f32)> = core_usages
+        .iter()
+        .enumerate()
+        .take(shown)
+        .map(|(index, usage)| (index, *usage))
+        .collect();
 
     let mut lines = Vec::new();
     for pair in indexed.chunks(2) {
         let mut spans = Vec::new();
-        for (index, cpu) in pair {
-            let pct = cpu.cpu_usage();
+        for (index, pct) in pair {
             spans.push(Span::styled(
-                format!(" {:>2} {}  ", index, usage_bar(pct)),
-                Style::default().fg(load_color(pct as f64)),
+                format!(" {:>2} {}  ", index, usage_bar(*pct)),
+                Style::default().fg(load_color(*pct as f64)),
             ));
         }
         lines.push(Line::from(spans));
     }
-    if cpus.len() > shown {
+    if core_usages.len() > shown {
         lines.push(Line::from(format!(
             " +{} cores not shown",
-            cpus.len() - shown
+            core_usages.len() - shown
         )));
     }
     lines
@@ -253,22 +229,23 @@ fn draw_process_table(
     table_state: &mut TableState,
 ) {
     let arrow = if app.desc { "\u{2193}" } else { "\u{2191}" };
-    let pid_h = if matches!(app.sort, SortKey::Pid) {
-        format!("PID {arrow}")
-    } else {
-        "PID".into()
-    };
-    let cpu_h = if matches!(app.sort, SortKey::Cpu) {
-        format!("CPU% {arrow}")
-    } else {
-        "CPU%".into()
-    };
-    let mem_h = if matches!(app.sort, SortKey::Mem) {
-        format!("MEM(MiB) {arrow}")
-    } else {
-        "MEM(MiB)".into()
-    };
-    let header = Row::new(vec![pid_h, "NAME".to_string(), cpu_h, mem_h]).style(
+    // Order must match `proc_row` and `widths`: PID | NAME | CPU% | MEM(MiB).
+    let header_cells: Vec<String> = [
+        (SortKey::Pid, "PID"),
+        (SortKey::Name, "NAME"),
+        (SortKey::Cpu, "CPU%"),
+        (SortKey::Mem, "MEM(MiB)"),
+    ]
+    .into_iter()
+    .map(|(key, label)| {
+        if app.sort == key {
+            format!("{label} {arrow}")
+        } else {
+            label.to_string()
+        }
+    })
+    .collect();
+    let header = Row::new(header_cells).style(
         Style::default()
             .fg(Color::Yellow)
             .add_modifier(Modifier::BOLD),
@@ -296,59 +273,52 @@ fn draw_process_table(
     frame.render_stateful_widget(table, area, table_state);
 }
 
-fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System, app: &App) {
-    let row = match app.processes.get(app.selected) {
-        Some(r) => r,
-        None => {
-            let para = Paragraph::new("No process selected")
-                .block(Block::default().borders(Borders::ALL).title("Details"));
-            frame.render_widget(para, area);
-            return;
-        }
+fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
+    let Some(row) = app.processes.get(app.selected) else {
+        let para = Paragraph::new("No process selected")
+            .block(Block::default().borders(Borders::ALL).title("Details"));
+        frame.render_widget(para, area);
+        return;
     };
-    let pid = row.pid;
-    let (name, ppid, status, cpu, mem_mb, exe, cmd) = if let Some(p) = sys.process(pid) {
-        let name = p.name().to_string_lossy().into_owned();
-        let ppid = p
-            .parent()
-            .map(|p| p.as_u32().to_string())
-            .unwrap_or_else(|| "\u{2014}".to_string());
-        let status = format!("{:?}", p.status());
-        let cpu = format!("{:.1}", p.cpu_usage());
-        let mem_mb = format!("{:.1}", p.memory() as f64 / (1024.0 * 1024.0));
-        let exe = p.exe().map(|e| e.display().to_string()).unwrap_or_default();
-        let cmd = p
-            .cmd()
-            .iter()
-            .map(|s| s.to_string_lossy())
-            .collect::<Vec<_>>()
-            .join(" ");
-        (name, ppid, status, cpu, mem_mb, exe, cmd)
-    } else {
-        (
+
+    // Live snapshot of the selected process; falls back to the row data
+    // once the process is gone.
+    let (name, ppid, status, cpu, mem_mib, exe, cmd) = match &app.details {
+        Some(d) => (
+            d.name.clone(),
+            d.ppid
+                .map(|p| p.as_u32().to_string())
+                .unwrap_or_else(|| "\u{2014}".to_string()),
+            d.status.clone(),
+            format!("{:.1}", d.cpu),
+            format!("{:.1}", d.mem_mib),
+            d.exe.clone(),
+            d.cmd.clone(),
+        ),
+        None => (
             row.name.clone(),
             row.ppid
                 .map(|p| p.as_u32().to_string())
                 .unwrap_or_else(|| "\u{2014}".to_string()),
             "Unknown".to_string(),
             format!("{:.1}", row.cpu),
-            format!("{:.1}", row.mem_mb),
+            format!("{:.1}", row.mem_mb as f64),
             String::new(),
             String::new(),
-        )
+        ),
     };
 
     let lines = vec![
         Line::from(vec![
             Span::styled(
-                format!(" PID: {}  ", row.pid),
+                format!(" PID: {}", row.pid.as_u32()),
                 Style::default().fg(Color::Yellow),
             ),
             Span::raw(format!("PPID: {ppid}  ")),
             Span::raw(format!("Status: {status}")),
         ]),
         Line::from(format!(" Name: {name}")),
-        Line::from(format!(" CPU%: {cpu}  Mem: {mem_mb} MB")),
+        Line::from(format!(" CPU%: {cpu}  Mem: {mem_mib} MiB")),
         Line::from(format!(" Exe: {exe}")),
         Line::from(format!(" Cmd: {cmd}")),
     ];
@@ -356,4 +326,61 @@ fn draw_process_details(frame: &mut ratatui::Frame<'_>, area: Rect, sys: &System
         .wrap(Wrap { trim: true })
         .block(Block::default().borders(Borders::ALL).title("Details"));
     frame.render_widget(para, area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn usage_bar_clamps_and_fills() {
+        assert_eq!(
+            usage_bar(0.0),
+            "[\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}]   0.0%"
+        );
+        assert_eq!(
+            usage_bar(100.0),
+            "[\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}] 100.0%"
+        );
+        // Over 100% (per-core CPU can exceed 100): clamps at full.
+        assert!(usage_bar(150.0).starts_with(
+            "[\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}]"
+        ));
+        assert!(usage_bar(50.0).starts_with(
+            "[\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2591}\u{2591}\u{2591}\u{2591}\u{2591}]"
+        ));
+    }
+
+    #[test]
+    fn format_uptime_variants() {
+        assert_eq!(format_uptime(0), "0h 0m");
+        assert_eq!(format_uptime(3_600), "1h 0m");
+        assert_eq!(format_uptime(3_660), "1h 1m");
+        assert_eq!(format_uptime(86_400), "1d 0h 0m");
+        assert_eq!(format_uptime(2 * 86_400 + 3 * 3_600 + 4 * 60), "2d 3h 4m");
+    }
+
+    #[test]
+    fn load_color_thresholds() {
+        assert_eq!(load_color(0.0), Color::Green);
+        assert_eq!(load_color(59.9), Color::Green);
+        assert_eq!(load_color(60.0), Color::Yellow);
+        assert_eq!(load_color(84.9), Color::Yellow);
+        assert_eq!(load_color(85.0), Color::Red);
+        assert_eq!(load_color(200.0), Color::Red);
+    }
+
+    #[test]
+    fn per_core_meters_caps_and_reports_elision() {
+        // Zero cores: no lines at all.
+        assert!(per_core_meters(&[]).is_empty());
+        // 8 cores fit exactly in 4 rows of 2: no elision note.
+        let lines = per_core_meters(&[0.0; 8]);
+        assert_eq!(lines.len(), 4);
+        // 9 cores: one extra "not shown" line.
+        let lines = per_core_meters(&[0.0; 9]);
+        assert_eq!(lines.len(), 5);
+        let last = format!("{:?}", lines.last().unwrap());
+        assert!(last.contains("not shown"));
+    }
 }

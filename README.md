@@ -4,7 +4,7 @@
 
 - **轻量**：仅依赖 crossterm、ratatui、sysinfo 三个 crate，无任何系统级依赖
 - **直观**：逐核 CPU 仪表按负载着色，进程详情一眼可读
-- **教学友好**：模块划分清晰，渲染、采集、状态、模型各司其职，适合作为 ratatui + TUI 入门参考
+- **示例项目**：一个结构完整的 Rust TUI 工具——模型、状态、采集、渲染各司其职，适合作为阅读和二次开发的起点
 
 ## 截图
 
@@ -75,12 +75,24 @@ utop [选项]
 
 | 模块 | 职责 |
 |------|------|
-| `src/main.rs` | 入口与事件循环 |
-| `src/app.rs` | 应用状态与输入模式 |
+| `src/main.rs` | 薄二进制入口 |
+| `src/lib.rs` | 库 crate 装配与模块地图 |
+| `src/run.rs` | 事件循环（唯一的非纯外壳，持有终端） |
+| `src/app.rs` | 应用状态与输入模式（纯逻辑） |
 | `src/model.rs` | 进程行模型、排序、过滤与树构建（纯逻辑） |
 | `src/collect.rs` | sysinfo 快照（唯一碰 sysinfo 的模块） |
-| `src/ui.rs` | ratatui 渲染 |
+| `src/ui.rs` | ratatui 渲染（纯渲染，只读 App 中的快照） |
 | `src/cli.rs` | 命令行参数解析（纯解析器） |
+
+分层严格无环：`model` ← `cli` ← `app` ← {`collect`, `ui`} ← `run`。除 `run` 与 `collect` 外全部是纯逻辑，单元测试无需真实系统。
+
+## 开发
+
+```sh
+cargo fmt          # 格式化
+cargo clippy       # 静态检查（CI 以 -D warnings 门禁）
+cargo test         # 单元测试 + 集成测试
+```
 
 ## 许可证
 

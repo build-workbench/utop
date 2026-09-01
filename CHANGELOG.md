@@ -4,6 +4,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Crate is now a library plus a thin binary, so integration tests can link
+  against the public API (`tests/api.rs`).
+
+### Changed
+
+- The module boundary is now real instead of aspirational: `collect` is
+  literally the only module that imports sysinfo. The UI reads snapshot
+  structs (`SysStats` / `ProcDetails`) stored on `App`, the event loop
+  reaches `System` only through `collect`, and PID / signal types are local
+  to `model`.
+- Process refresh no longer collects per-process disk usage, which was
+  never displayed. Threads remain listed (they are rows too).
+- Killing reports a structured outcome (`KillOutcome`) instead of only a
+  status string; messages now say SIGTERM / SIGKILL.
+- Sort / reverse in tree view re-shape the already-collected rows instead
+  of re-reading the process table.
+- Input handlers are pure (they record the work they need via `Followup`
+  and let the event loop perform it), which made them unit-testable.
+- The ~220 ms startup CPU-sampling gap now runs before the terminal is
+  taken over, so there is no blank unresponsive screen at startup.
+- Terminal teardown is shared between the clean-exit and panic paths.
+
+### Fixed
+
+- The `Cmd` line in the details panel was always empty: process command
+  lines were never sampled.
+- Details panel memory was labelled "MB" for MiB values; now "MiB".
+- Sort indicator was missing from the NAME column header.
+- The 0.4.0 entry below said startup samples are "spaced 150 ms apart";
+  the actual gap is `MINIMUM_CPU_UPDATE_INTERVAL + 20 ms` (~220 ms on
+  Linux). Recorded here rather than rewriting history.
+- Terminal restore on panic now also shows the cursor again (previously
+  only the clean-exit path did).
+
 ## [0.4.0] - 2026-08-05
 
 ### Added
