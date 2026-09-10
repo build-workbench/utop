@@ -96,4 +96,4 @@ cargo test         # 单元测试 + 集成测试
 
 ## 许可证
 
-MIT OR Apache-2.0
+依据 [MIT](./LICENSE-MIT) 或 [Apache-2.0](./LICENSE-APACHE) 双许可发布，使用者可任选其一。
