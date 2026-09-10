@@ -1,1 +1,8 @@
 /target
+
+# AI tools (local only)
+.commandcode/
+.claude/
+.codex/
+.agents/
+.superpowers/
