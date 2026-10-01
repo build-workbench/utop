@@ -1,5 +1,109 @@
 # utop
 
+A lightweight terminal process monitor written in Rust, based on ratatui and sysinfo, inspired by htop.
+
+- **Lightweight**: depends only on the crossterm, ratatui and sysinfo crates, with no system-level dependencies
+- **Intuitive**: per-core CPU meters colored by load, process details readable at a glance
+- **Example project**: a structurally complete Rust TUI tool — model, state, collection and rendering each have their own role — suitable as a starting point for reading and secondary development
+
+## Screenshots
+
+![utop tree view + process details](demo.png)
+
+## Features
+
+- Per-core CPU meters, colored by load (green / yellow / red)
+- Overview panel showing load averages and uptime
+- Process table sortable by CPU, memory, PID and name, with ascending / descending toggle
+- Incremental search filtering (matches process name or PID)
+- Tree view with collapsible subtrees
+- Kill process with a second confirmation and signal selection (SIGTERM / SIGKILL)
+- Process details panel (state, PPID, executable, command line)
+- Pause / resume refresh, adjustable refresh interval
+- Mouse wheel scrolling
+- Command-line options: initial sort, filter, refresh interval, view mode
+
+## Build & Run
+
+```sh
+cargo build --release
+./target/release/utop
+```
+
+Or simply:
+
+```sh
+cargo run --release
+```
+
+## Usage
+
+```
+utop [选项]
+
+选项：
+  -h, --help           打印帮助并退出
+  -s, --sort <KEY>     初始排序键：cpu | mem | pid | name [默认：cpu]
+  -a, --asc            以升序启动 [默认：降序]
+  -d, --delay <MS>     刷新间隔（毫秒），范围 100..=5000 [默认：500]
+  -f, --filter <STR>   初始进程过滤（匹配名称或 PID）
+  -t, --tree           以树状视图启动
+  -V, --version        打印版本并退出
+```
+
+## Keybindings
+
+| Key | Action |
+|------|------|
+| q / Ctrl+C | Quit |
+| Up/Down, PgUp/PgDn, Home/End, mouse wheel | Navigate |
+| s | Cycle sort key (CPU / memory / PID / name) |
+| r | Toggle ascending / descending |
+| / | Search processes (Enter to confirm, Esc to clear) |
+| Esc | Clear filter |
+| t | Toggle tree view |
+| Space | Collapse / expand subtree (tree view) |
+| p | Pause / resume refresh |
+| F5 | Force refresh |
+| k | Kill the selected process (y = SIGTERM, K = SIGKILL, Esc = cancel) |
+| d / Enter | Toggle process details |
+| - / + | Decrease / increase the refresh interval (step 100 ms) |
+
+Note: when filtering, the tree view is temporarily flattened into a list, because a broken tree is harder to read than a plain list.
+
+## Module Structure
+
+| Module | Responsibility |
+|------|------|
+| `src/main.rs` | Thin binary entry point |
+| `src/lib.rs` | Library crate assembly and module map |
+| `src/run.rs` | Event loop (the only non-pure shell, owns the terminal) |
+| `src/app.rs` | Application state and input modes (pure logic) |
+| `src/model.rs` | Process row model, sorting, filtering and tree building (pure logic) |
+| `src/collect.rs` | sysinfo snapshots (the only module that touches sysinfo) |
+| `src/ui.rs` | ratatui rendering (pure rendering, reads only the snapshot in App) |
+| `src/cli.rs` | Command-line argument parsing (pure parser) |
+
+The layering is strictly acyclic: `model` ← `cli` ← `app` ← {`collect`, `ui`} ← `run`. Everything except `run` and `collect` is pure logic, so unit tests need no real system.
+
+## Development
+
+```sh
+cargo fmt          # 格式化
+cargo clippy       # 静态检查（CI 以 -D warnings 门禁）
+cargo test         # 单元测试 + 集成测试
+```
+
+## License
+
+Dual-licensed under [MIT](./LICENSE-MIT) or [Apache-2.0](./LICENSE-APACHE), and the user may choose either one.
+
+---
+
+<a id="chinese"></a>
+
+# utop
+
 一个用 Rust 编写的轻量级终端进程监视器，基于 ratatui 和 sysinfo，灵感来自 htop。
 
 - **轻量**：仅依赖 crossterm、ratatui、sysinfo 三个 crate，无任何系统级依赖
