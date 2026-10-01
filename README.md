@@ -1,3 +1,7 @@
+**English** | [中文](#chinese)
+
+<a id="top"></a>
+
 # utop
 
 A lightweight terminal process monitor written in Rust, based on ratatui and sysinfo, inspired by htop.
@@ -101,6 +105,7 @@ Dual-licensed under [MIT](./LICENSE-MIT) or [Apache-2.0](./LICENSE-APACHE), and 
 ---
 
 <a id="chinese"></a>
+[English](#top) | **中文**
 
 # utop
 
