@@ -8,7 +8,7 @@ A lightweight terminal process monitor written in Rust, based on ratatui and sys
 
 - **Lightweight**: depends only on the crossterm, ratatui and sysinfo crates, with no system-level dependencies
 - **Intuitive**: per-core CPU meters colored by load, process details readable at a glance
-- **Example project**: a structurally complete Rust TUI tool — model, state, collection and rendering each have their own role — suitable as a starting point for reading and secondary development
+- **Example project**: a structurally complete Rust TUI tool — model, state, collection and rendering each have their own role — suitable as a starting point for reading and further development
 
 ## Screenshots
 
